@@ -17,9 +17,9 @@ See the following file for full guidance: [manual_requirements.txt](manual_requi
 
 ### How to set up a dataset (Example for Parse2022):
 
-In case that you have a dataset of 3D input files with holes and 3D ground truth files \
-(For example we used [Parse2022](https://grand-challenge.org/forums/forum/parse2022-623/) data and 
-used SOTA model results as our input data, along with the dataset labels as our ground truth data).
+In case that you have a dataset of 3D input files with holes and 3D ground truth files. \
+(Example: for [Parse2022](https://grand-challenge.org/forums/forum/parse2022-623/) data, we took SOTA model results 
+(i.e. [MEDPSeg](https://github.com/MICLab-Unicamp/medpseg)) as our input data, along with `Parse2022` labels as our ground truth data).
 
 1. Put the `parse2022` dataset with the `labels` and `preds` data on the path: `./data/parse2022`
    - `labels` - The 3D ground truth
@@ -52,7 +52,7 @@ used SOTA model results as our input data, along with the dataset labels as our 
 ### How to generate synthetic dataset (Example for PipeForge3D):
 
 In case you have only a dataset of 3D files, and you want to create random holes in them \
-(For example we used our own [PipeForge3D](https://github.com/OfirGiladBGU/PipeForge3D) dataset generator to create 3D model, and apply random holes on them).
+(Example: We used our own [PipeForge3D](https://github.com/OfirGiladBGU/PipeForge3D) dataset generator to create 3D models, and apply random holes on them).
 
 1. Put the `PipeForge3D` dataset with the `originals` data on the path: `./data/PipeForge3D`
    - `originals` - The raw data, before voxelization
@@ -80,7 +80,7 @@ There are 3 types of model supported in this repo:
 - To train the `model_3d` run `main_3d` script: [main_3d.py](main_3d.py) (Currently `DISABLED` for Full Pipeline)
 
 **Notice:** all scripts are calling the generic [main_base.py](main_base.py) scripts that call the matching training 
-scripts in the files, based on the `model_type` parameter in the relevant main script:
+scripts in the files, based on the `model_type` parameter in the relevant `main_{i}` script:
 
 - [train_1d.py](trainer/train_1d.py)
 - [train_2d.py](trainer/train_2d.py)

@@ -451,6 +451,11 @@ def main():
     voxel_size = 1.0
     increase_density = False
 
+    # # Hospital CUP scale
+    # points_scale = 25.0
+    # voxel_size = 1.0
+    # increase_density = False
+
     convert_originals_data_to_labels_data(save_as_npy=True, points_scale=points_scale, voxel_size=voxel_size,
                                           increase_density=increase_density)
     convert_labels_data_to_preds_data(save_as_npy=True)
