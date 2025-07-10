@@ -53,5 +53,6 @@ if __name__ == "__main__":
     args.batch_size = 1
     args.dataset = 'Trees3DV2Full'
     args.epochs = 1000
+    args.predict = False  # Skip predict for visualization
 
     run_main(args=args, model_type=ModelType.Model_3D)
