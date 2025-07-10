@@ -11,6 +11,11 @@ from models.model_list import init_model
 def configure_wandb(args, model, init=True):
     import wandb
     if init:
+        dot_env_path = os.path.join(ROOT_PATH, ".env")
+        with open(dot_env_path, 'r') as f:
+            for line in f:
+                if line.startswith("WANDB_API_KEY"):
+                    os.environ["WANDB_API_KEY"] = line.replace('WANDB_API_KEY=','').strip(" \"")
         API_KEY = os.environ.get("WANDB_API_KEY")
         wandb.login(key=API_KEY)
 
