@@ -355,7 +355,7 @@ class TreesDataset3DV2D(IndexableDataset):
 
         self.input_size = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
 
-        src_path = PREDS_FIXED_3D
+        src_path = PREDS_ADVANCED_FIXED_3D
         dst_path = LABELS_3D
         args.include_regression = False
 

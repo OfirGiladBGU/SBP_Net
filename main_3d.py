@@ -50,7 +50,7 @@ if __name__ == "__main__":
     args.model = 'unet3d'
     args.batch_size = 1
     # args.dataset = 'Trees3DV3'
-    args.dataset = 'Trees3DV2'
+    args.dataset = 'Trees3DV2D'
     args.epochs = 1000
     args.predict = False  # Skip predict for visualization
 
