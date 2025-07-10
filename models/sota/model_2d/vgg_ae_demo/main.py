@@ -1,5 +1,6 @@
 import argparse
 from torch import nn
+import torch
 
 
 # See: https://github.com/crowsonkb/vgg_loss/blob/master/vgg_loss_demo_3.py
@@ -80,3 +81,21 @@ class Network2D(nn.Module):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.input_size = (1, 32, 32)
+    model = Network2D(args)
+    model.eval()
+
+    input_data = torch.rand(size=[1, *args.input_size])
+    output_data = model(input_data)
+    print(output_data.shape)
+
+# Loss: WeightedLoss (1, 40, 10):
+#   - VGGLoss(shift=2)
+#   - MSELoss()
+#   - TVLoss(p=1)
+# Optimizer: Adam

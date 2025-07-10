@@ -34,3 +34,8 @@ if __name__ == '__main__':
     input_data = torch.rand(size=[1, *args.input_size]).to(device)
     output_data = model(input_data)
     print(output_data.shape)
+
+# Loss: BCEDiceLoss
+# Optimizer: Adam:
+#   - learning_rate: 0.0002
+#   - weight_decay: 0.00001

@@ -74,3 +74,6 @@ if __name__ == '__main__':
     input_data = torch.rand(size=[1, *args.input_size])
     output_data = model(input_data)
     print(output_data.shape)
+
+# Loss: MSE
+# Optimizer: AdaDelta
