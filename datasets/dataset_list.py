@@ -388,6 +388,28 @@ class TreesDataset3DV2F(IndexableDataset):
         )
 
 
+class TreesDataset3DV2Full(IndexableDataset):
+    def __init__(self, args: argparse.Namespace):
+        super(TreesDataset3DV2Full, self).__init__(args=args)
+        if args.batch_size != 1:
+            raise ValueError("Batch size must be 1")
+
+        # Dynamic Size
+        self.input_size = (1, -1, -1, -1)
+
+        src_path = PREDS_FIXED
+        dst_path = LABELS
+        args.include_regression = False
+
+        data_paths = [src_path, dst_path]
+        trees_dataset = TreesCustomDataset3D(args=args, data_paths=data_paths)
+
+        self.init_dataloaders(
+            train_subset=trees_dataset.train_subset,
+            test_subset=trees_dataset.test_subset
+        )
+
+
 # Init Method
 def init_dataset(args: argparse.Namespace):
     print(f"[Dataset: '{args.dataset}'] Initializing...")
@@ -415,7 +437,10 @@ def init_dataset(args: argparse.Namespace):
         "Trees3DV2": TreesDataset3DV2,
         "Trees3DV2R": TreesDataset3DV2R,
         "Trees3DV2D": TreesDataset3DV2D,
-        "Trees3DV2F": TreesDataset3DV2F
+        "Trees3DV2F": TreesDataset3DV2F,
+
+        # 3D Datasets (Full)
+        "Trees3DV2Full": TreesDataset3DV2Full,
     }
     if args.dataset in list(dataset_map.keys()):
         return dataset_map[args.dataset](args=args)

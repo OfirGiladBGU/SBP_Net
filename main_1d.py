@@ -42,7 +42,6 @@ if __name__ == "__main__":
     # args.model = 'vit_2d_to_1d'
     args.model = 'cnn_2d_to_1d'
     args.dataset = 'Trees1DV1'
-
     args.epochs = 10
 
     run_main(args=args, model_type=ModelType.Model_1D)

@@ -194,6 +194,7 @@ RANDOM_HOLES_DATASETS = ['MNIST', 'EMNIST', 'FashionMNIST', 'CIFAR10', 'Trees2DV
 # Dataset 3D
 V1_3D_DATASETS = ['Trees3DV1', 'Trees3DV1R']
 V2_3D_DATASETS = ['Trees3DV2', 'Trees3DV2R', 'Trees3DV2D', 'Trees3DV2F']
+V3_3D_DATASETS = ['Trees3DV2Full']
 
 # Views Configurations
 IMAGES_6_VIEWS = ["top", "bottom", "front", "back", "left", "right"]

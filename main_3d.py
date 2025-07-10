@@ -41,16 +41,17 @@ if __name__ == "__main__":
 
     # args.model = 'ae_6_2d_to_3d'
     # args.dataset = 'Trees3DV1'
+    # args.epochs = 10
 
-    args.model = 'ae_3d_to_3d'
-    # args.dataset = 'Trees3DV2'
-    # args.dataset = 'Trees3DV2D'
-    args.dataset = 'Trees3DV2F'
+    # args.model = 'ae_3d_to_3d'
+    # # args.dataset = 'Trees3DV2'
+    # # args.dataset = 'Trees3DV2D'
+    # args.dataset = 'Trees3DV2F'
+    # args.epochs = 10
 
-    args.epochs = 10
+    args.model = 'unet3d'
+    args.batch_size = 1
+    args.dataset = 'Trees3DV2Full'
+    args.epochs = 1000
 
     run_main(args=args, model_type=ModelType.Model_3D)
-
-    # Notes:
-
-    # TODO: add connected components head, and use it to take only the "result" largest connected components
