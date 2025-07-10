@@ -187,7 +187,9 @@ voxel_size = 1.0
 
 # Chosen Approach:
 
-- Flow: 
+Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
+
+- **(Fast Performance Flow)** `[6 2D -> 6 2D | Direct Fusion]`: 
    1. Crop and Project both the `3d ground truth` and `3d predicted labels`:
       1. 6 views of `2d ground truth`
       2. 6 views of `2d predicted labels`
@@ -201,9 +203,9 @@ voxel_size = 1.0
 
 # Available Approaches:
 
-Given the `3d ground truth` and the `3d predicted labels`:
+Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
-1. (Main Core Flow) Option 1 Flows: 
+1. **(Initial Flow)** `[6 2D -> 6 2D | 6 2D -> 3D]`: 
    1. Crop and Project both the `3d ground truth` and `3d predicted labels`:
       1. 6 views of `2d ground truth`
       2. 6 views of `2d predicted labels`
@@ -216,7 +218,7 @@ Given the `3d ground truth` and the `3d predicted labels`:
       
    4. Use all the `3d fixed label` to fix the `3d predicted labels`
 
-2. (Secondary Core Flow) Option 2 Flows: 
+2. **(Secondary Flow)** `[6 2D -> 6 2D | Direct Fusion | 3D -> 3D]`: 
    1. Crop and Project both the `3d ground truth` and `3d predicted labels` to `cropped`:
       1. 6 views of `2d ground truth`
       2. 6 views of `2d predicted labels`
@@ -246,7 +248,7 @@ Given the `3d ground truth` and the `3d predicted labels`:
          2. Predict with the `fused pre-3d fixed labels` to get the `3d fixed labels`
    5. Use all the `3d fixed label` to fix the `3d predicted labels`
 
-3. (Direct Repair Flow) Option 3 Flows:
+3. **(Direct Repair Flow)** `[3D -> 3D]`:
    1. Crop both the `3d ground truth` and `3d predicted labels`:
       1. `cropped 3d ground truth`
       2. `cropped 3d predicted labels`
