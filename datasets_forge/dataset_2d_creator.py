@@ -457,7 +457,7 @@ def create_2d_projections_and_3d_cubes_for_training():
 
     # Create Output Folders
     for output_folder in output_folders.values():
-        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder:
+        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder.name:
             continue
         os.makedirs(output_folder, exist_ok=True)
 
@@ -1037,7 +1037,7 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
 
     # Create Output Folders
     for output_folder in output_folders.values():
-        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder:
+        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder.name:
             continue
         os.makedirs(output_folder, exist_ok=True)
 
