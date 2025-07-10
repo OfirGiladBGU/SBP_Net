@@ -284,6 +284,12 @@ See the following question on [Stack Overflow](https://stackoverflow.com/questio
 Commit with big change:
 11.04.2025 - configured new noise filters based on the Continuity fix 3D filters
 
+# Fixing broken `pip` on python env:
+
+```
+python -m pip install -U --force pip
+```
+
 ---
 
 ## [NOT USED] Graph Generators
