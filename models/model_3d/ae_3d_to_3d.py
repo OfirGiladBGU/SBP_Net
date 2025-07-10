@@ -268,3 +268,17 @@ class Network3D(nn.Module):
         latent = self.bottleneck(encoded)
         decoded = self.decoder(latent)
         return decoded
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.input_size = (1, 32, 32, 32)
+    model = Network3D(args)
+    model.eval()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    input_data = torch.rand(size=[1, *args.input_size]).to(device)
+    output_data = model(input_data)
+    print(output_data.shape)

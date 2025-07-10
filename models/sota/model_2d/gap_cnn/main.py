@@ -1,8 +1,9 @@
 import argparse
 from torch import nn
+import torch
 
 
-# Model
+# See: https://openaccess.thecvf.com/content_cvpr_2017/papers/Sasaki_Joint_Gap_Detection_CVPR_2017_paper.pdf
 class Network2D(nn.Module):
     def __init__(self, args: argparse.Namespace):
         super(Network2D, self).__init__()
@@ -61,3 +62,15 @@ class Network2D(nn.Module):
         x = self.relu(self.layer15(x))
         x = self.sigmoid(self.layer16(x))
         return x
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.input_size = (1, 32, 32)
+    model = Network2D(args)
+    model.eval()
+
+    input_data = torch.rand(size=[1, *args.input_size])
+    output_data = model(input_data)
+    print(output_data.shape)

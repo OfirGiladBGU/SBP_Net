@@ -2,7 +2,7 @@ import argparse
 from torch import nn
 
 
-# Model
+# See: https://github.com/crowsonkb/vgg_loss/blob/master/vgg_loss_demo_3.py
 class Network2D(nn.Module):
     def __init__(self, args: argparse.Namespace):
         super(Network2D, self).__init__()

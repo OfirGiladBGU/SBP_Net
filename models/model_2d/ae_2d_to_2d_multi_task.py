@@ -111,3 +111,18 @@ class Network2D(nn.Module):
         confidence = self.confidence_decoder3(confidence + x1)  # Skip connection
 
         return recon, confidence
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.input_size = (1, 32, 32)
+    model = Network2D(args)
+    model.eval()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    input_data = torch.rand(size=[1, *args.input_size]).to(device)
+    output_data, conf_data = model(input_data)
+    print(output_data.shape)
+    print(conf_data.shape)

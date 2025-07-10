@@ -75,14 +75,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='2D to 3D Autoencoder')
     args = parser.parse_args()
     args.input_size = (6, 1, 32, 32)
-    model = Network3D(args=args).cuda()
-    views = torch.randn(2, 6, 1, 32, 32).cuda()  # Dummy input for batch_size=2 and 6 views per sample
+    model = Network3D(args=args)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    views = torch.randn(2, 6, 1, 32, 32).to(device)  # Dummy input for batch_size=2 and 6 views per sample
 
     scaler = GradScaler()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # Training loop
-    for epoch in range(10):  # Example epoch loop
+    for epoch in range(1):  # Example epoch loop
         optimizer.zero_grad()
         with autocast():  # Mixed precision training
             output = model(views)

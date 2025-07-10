@@ -1,6 +1,6 @@
 import argparse
 import torch.nn as nn
-# import torch
+import torch
 # import torch.nn.functional as F
 
 
@@ -248,3 +248,17 @@ class Network2D(nn.Module):
         x3 = self.conv3(x2)
 
         return x3
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.input_size = (6, 32, 32)
+    model = Network2D(args)
+    model.eval()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    input_data = torch.rand(size=[1, *args.input_size]).to(device)
+    output_data = model(input_data)
+    print(output_data.shape)
