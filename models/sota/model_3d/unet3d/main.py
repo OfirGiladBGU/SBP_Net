@@ -25,7 +25,7 @@ class Network3D(nn.Module):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    args.input_size = (1, 32, 32, 32)
+    args.input_size = (1, 32, 64, 64)
     model = Network3D(args)
     model.eval()
 
