@@ -259,23 +259,35 @@ Given the `3d ground truth` and the `3d predicted labels`:
 
 ---
 
-# Sources:
+# Sources and Pro tips:
 
 ## AE (As base model skeleton):
 
-https://github.com/dariocazzani/pytorch-AE
+See GitHub: https://github.com/dariocazzani/pytorch-AE
 
 ## VGG loss:
 
-https://github.com/crowsonkb/vgg_loss/tree/master
+See GitHub: https://github.com/crowsonkb/vgg_loss/tree/master
+
+## SSIM loss:
+
+See GitHub: https://github.com/Po-Hsun-Su/pytorch-ssim.git
 
 ## Tool to visualize projections on 3D cube:
 
-https://3dthis.com/photocube.htm
+See the following website: [3Dthis](https://3dthis.com/photocube.htm).
 
 ## Configuring Matplotlib Plots to Display in a Window in PyCharm
 
 See the following question on [Stack Overflow](https://stackoverflow.com/questions/57015206/how-to-show-matplotlib-plots-in-a-window-instead-of-sciview-toolbar-in-pycharm-p).
+
+## Fixing broken `pip` on python env:
+
+See the following question on [Stack Overflow](https://stackoverflow.com/questions/61278097/how-do-i-fix-pip).
+
+```
+python -m pip install -U --force pip
+```
 
 ---
 
@@ -284,11 +296,7 @@ See the following question on [Stack Overflow](https://stackoverflow.com/questio
 Commit with big change:
 11.04.2025 - configured new noise filters based on the Continuity fix 3D filters
 
-# Fixing broken `pip` on python env:
 
-```
-python -m pip install -U --force pip
-```
 
 ---
 
