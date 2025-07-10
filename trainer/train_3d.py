@@ -32,7 +32,10 @@ class Trainer(object):
         self.train_loader = self.dataset.train_loader
         self.test_loader = self.dataset.test_loader
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+        if self.model.model_name == "unet3d":
+            self.optimizer = optim.Adam(self.model.parameters(), lr=0.0002, weight_decay=0.00001)
+        else:
+            self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
 
     def loss_function(self, output_data, target_data, input_data=None):
         """

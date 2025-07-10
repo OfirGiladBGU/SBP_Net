@@ -99,5 +99,4 @@ if __name__ == '__main__':
 #   - MSELoss()
 #   - TVLoss(p=1)
 # Optimizer: Adam
-#   - weight_decay: 0.00001
 # Max Epochs: 100

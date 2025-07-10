@@ -34,8 +34,13 @@ class Trainer(object):
 
         self.datasets_for_holes = RANDOM_HOLES_DATASETS
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
-        # self.optimizer = optim.Adadelta(self.model.parameters())  # For gap_cnn
+        if self.model.model_name == "gap_cnn":
+            self.optimizer = optim.Adadelta(self.model.parameters())
+        elif self.model.model_name == "vgg_ae_demo":
+            self.optimizer = optim.Adam(self.model.parameters())
+        else:
+            self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+        
 
     def loss_function(self, output_data, target_data, input_data=None):
         """
