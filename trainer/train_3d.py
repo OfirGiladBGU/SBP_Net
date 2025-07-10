@@ -41,20 +41,24 @@ class Trainer(object):
         :param input_data: the original input data for the model
         :return:
         """
+        if self.model.model_name == "unet3d":
+            LOSS = loss_functions.weighted_bce_dice_loss(output=output_data, target=target_data)
+            return LOSS
+
         ##########
         # Test 1 #
         ##########
-        # LOSS = loss_functions.mse_loss(output_data, target_data, reduction='sum')
+        # LOSS = loss_functions.mse_loss(output=output_data, target=target_data, reduction='sum')
 
         ##########
         # Test 2 #
         ##########
-        # LOSS = loss_functions.bce_dice_loss(output_data, target_data)
+        # LOSS = loss_functions.bce_dice_loss(output=output_data, target=target_data)
 
         ##########
         # Test 3 #
         ##########
-        # LOSS = loss_functions.weighted_bce_dice_loss(output_data, target_data)
+        # LOSS = loss_functions.weighted_bce_dice_loss(output=output_data, target=target_data)
 
         ##########
         # Test 4 #

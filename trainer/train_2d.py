@@ -50,6 +50,13 @@ class Trainer(object):
         else:
             output_confidence_data = None
 
+        if self.model.model_name == "gap_cnn":
+            LOSS = loss_functions.mse_loss(output=output_data, target=target_data)
+            return LOSS
+        elif self.model.model_name == "vgg_ae_demo":
+            LOSS = loss_functions.perceptual_loss(output=output_data, target=target_data, channels=1, device=self.device)
+            return LOSS
+
         ##########
         # Test 1 #
         ##########
