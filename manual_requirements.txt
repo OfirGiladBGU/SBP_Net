@@ -39,6 +39,7 @@ pip install einops
 # Optional for using unet3d in model_3d #
 
 pip install h5py
+pip install einops
 
 
 ####################

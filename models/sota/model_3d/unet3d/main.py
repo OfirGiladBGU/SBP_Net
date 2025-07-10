@@ -5,6 +5,7 @@ import torch.nn as nn
 from model import UNet3D
 
 
+# See: https://github.com/wolny/pytorch-3dunet/blob/master/pytorch3dunet/unet3d/model.py
 class Network3D(nn.Module):
     def __init__(self, args: argparse.Namespace):
         super(Network3D, self).__init__()
@@ -39,3 +40,4 @@ if __name__ == '__main__':
 # Optimizer: Adam:
 #   - learning_rate: 0.0002
 #   - weight_decay: 0.00001
+# Max Epochs: 1000

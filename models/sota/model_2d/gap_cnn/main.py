@@ -67,6 +67,7 @@ class Network2D(nn.Module):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
+    # args.input_size = (1, 352, 352)
     args.input_size = (1, 32, 32)
     model = Network2D(args)
     model.eval()
@@ -77,3 +78,4 @@ if __name__ == '__main__':
 
 # Loss: MSE
 # Optimizer: AdaDelta
+# Max Epochs: 300000
