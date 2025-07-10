@@ -7,6 +7,8 @@ from typing import Tuple, List
 from skimage import color
 import cv2
 from collections import defaultdict
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
 from configs.configs_parser import *
 from datasets.dataset_utils import *

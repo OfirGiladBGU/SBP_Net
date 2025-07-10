@@ -1,3 +1,7 @@
+import pathlib
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
+
 from datasets.dataset_utils import get_data_file_extension, convert_data_file_to_numpy, convert_numpy_to_data_file
 
 

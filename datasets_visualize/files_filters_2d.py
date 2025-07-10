@@ -1,6 +1,10 @@
 import os
+import pathlib
 import cv2
 import matplotlib.pyplot as plt
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
+
 from configs.configs_parser import DATA_PATH
 
 

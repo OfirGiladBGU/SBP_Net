@@ -3,10 +3,12 @@ import pathlib
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
 from configs.configs_parser import *
-from datasets.dataset_utils import (get_data_file_stem, convert_data_file_to_numpy, convert_numpy_to_data_file,
-                                    project_3d_to_2d, get_images_6_views, reconstruct_3d_from_2d)
+from datasets.dataset_utils import *
+
 # TODO: Debug Tools
 from datasets_visualize.dataset_visulalization import interactive_plot_2d, interactive_plot_3d
 

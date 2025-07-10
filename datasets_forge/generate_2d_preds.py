@@ -4,6 +4,8 @@ from tqdm import tqdm
 import numpy as np
 import random
 import cv2
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
 from configs.configs_parser import DATA_CROPS_PATH
 from datasets.dataset_utils import convert_data_file_to_numpy, convert_numpy_to_data_file, get_data_file_stem

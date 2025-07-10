@@ -3,6 +3,8 @@ import pathlib
 from tqdm import tqdm
 import numpy as np
 from statistics import mean
+import sys
+sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
 from configs.configs_parser import DATA_PATH
 from datasets.dataset_utils import convert_data_file_to_numpy, get_data_file_stem, connected_components_3d
