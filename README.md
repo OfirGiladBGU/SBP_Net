@@ -94,7 +94,7 @@ The prediction pipeline is designed to process 3D data and generate predictions 
 It consists of two main scripts: 
 
 - [offline_pipeline.py](offline_pipeline.py) - On training/evaluation local crops data.
-- [TBD] [online_pipeline.py](online_pipeline.py) - Directly on new full 3D data.
+- [WIP] [online_pipeline.py](online_pipeline.py) - Directly on new full 3D data.
 
 ---
 
