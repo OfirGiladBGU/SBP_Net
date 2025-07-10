@@ -1224,7 +1224,8 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
 
 def main():
     # TODO: Required for training with all modes
-    # create_dataset_with_outliers_removed()
+    if os.path.exists(PREDS_FIXED) is False:
+        create_dataset_with_outliers_removed()
 
     # data_options = {
     #     LABELS: True,
