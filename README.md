@@ -261,7 +261,7 @@ Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
 ---
 
-# Sources and Pro tips:
+# Sources and Pro Tips:
 
 ## AE (As base model skeleton):
 
