@@ -25,16 +25,17 @@ In case that you have a dataset of 3D input files with holes and 3D ground truth
    - `labels` - The 3D ground truth
    - `preds` - The 3D input
 2. Create config file in `.yaml` format and put it in `configs` folder (see example: [parse2022_SC_32.yaml](configs/parse2022_SC_32.yaml)).
-3. Build the `dataset_2d` (also `dataset_1d`) by running `dataset_2d_creator` script: [dataset_2d_creator.py](datasets_forge/dataset_2d_creator.py)
-4. Build the `dataset_3d` by running  `dataset_3d_creator` script: [dataset_3d_creator.py](datasets_forge/dataset_3d_creator.py)
-5. Notice that the following structure will be created in the `DATASET_INPUT_FOLDER`:
+3. Update the `CONFIG_FILENAME` field inside the [configs_parser.py](configs/configs_parser.py) with the `.yaml` filepath relative to the `./configs` folder path.
+4. Build the `dataset_2d` (also `dataset_1d`) by running `dataset_2d_creator` script: [dataset_2d_creator.py](datasets_forge/dataset_2d_creator.py)
+5. Build the `dataset_3d` by running  `dataset_3d_creator` script: [dataset_3d_creator.py](datasets_forge/dataset_3d_creator.py)
+6. Notice that the following structure will be created in the `DATASET_INPUT_FOLDER`:
    - A new folder named `preds_fixed` will be created with the data from `preds` after outliers removal.
    - For each `<folder>` in [`labels`, `preds`, `preds_fixed`]:
      ```
      ./data/parse2022
      └── <folder>_components      // (Components of the 3D data)
      ```
-6. Notice that the following structure will be created in the `DATASET_OUTPUT_FOLDER`:
+7. Notice that the following structure will be created in the `DATASET_OUTPUT_FOLDER`:
    - For each `<folder>` in [`labels`, `preds`, `preds_fixed`, `preds_advanced_fixed`]:
      ```
      ./data_crops/parse2022
