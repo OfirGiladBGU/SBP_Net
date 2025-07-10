@@ -236,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument('--model-1d', type=str, default="", metavar='N',
                         help='Which 1D model to use')
     parser.add_argument('--input-size-model-1d', type=tuple, default=(1, 32, 32), metavar='N',
-                        help='Which input size the 2D model should to use')
+                        help='Which input size the 1D model should to use')
     parser.add_argument('--model-2d', type=str, default="", metavar='N',
                         help='Which 2D model to use')
     parser.add_argument('--input-size-model-2d', type=tuple, default=(1, 32, 32), metavar='N',

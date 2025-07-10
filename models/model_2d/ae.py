@@ -129,12 +129,12 @@ class CNN_Decoder(nn.Module):
 
 # Model
 class Network2D(nn.Module):
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace, embedding_size=32):
         super(Network2D, self).__init__()
 
         self.model_name = 'ae'
         self.input_size = args.input_size
-        self.output_size = args.embedding_size
+        self.output_size = embedding_size
 
         self.encoder = CNN_Encoder(output_size=self.output_size, data_size=self.input_size)
         self.decoder = CNN_Decoder(embedding_size=self.output_size, data_size=self.input_size)
@@ -154,8 +154,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
     args.input_size = (1, 28, 28)
-    args.embedding_size = 32
-    model = Network2D(args)
+    embedding_size = 32  # Optional
+    model = Network2D(args, embedding_size)
     model.eval()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
