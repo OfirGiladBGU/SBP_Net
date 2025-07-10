@@ -388,9 +388,10 @@ class TreesDataset3DV2F(IndexableDataset):
         )
 
 
-class TreesDataset3DV2Full(IndexableDataset):
+# Train with FULL 3D preds fixed to predict FULL 3D labels
+class TreesDataset3DV3(IndexableDataset):
     def __init__(self, args: argparse.Namespace):
-        super(TreesDataset3DV2Full, self).__init__(args=args)
+        super(TreesDataset3DV3, self).__init__(args=args)
         if args.batch_size != 1:
             raise ValueError("Batch size must be 1")
 
@@ -438,9 +439,7 @@ def init_dataset(args: argparse.Namespace):
         "Trees3DV2R": TreesDataset3DV2R,
         "Trees3DV2D": TreesDataset3DV2D,
         "Trees3DV2F": TreesDataset3DV2F,
-
-        # 3D Datasets (Full)
-        "Trees3DV2Full": TreesDataset3DV2Full,
+        "Trees3DV3": TreesDataset3DV3,
     }
     if args.dataset in list(dataset_map.keys()):
         return dataset_map[args.dataset](args=args)

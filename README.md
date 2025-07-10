@@ -50,6 +50,12 @@ In case that you have a dataset of 3D input files with holes and 3D ground truth
      ```
      **Notice:** `labels_3d_fusion` is excluded as it has no meaning (it will be equal to `labels`).
 
+**Notice:** The `<folder>` possible values meaning are:
+- `labels` - The 3D ground truth
+- `preds` - The 3D input (This name was chosen as originally the data in this folder came from SOTA model `predictions`)
+- `preds_fixed` - The 3D `preds` after outliers removal (the data that will be used for evaluation and sometimes training)
+- `preds_advanced_fixed` - The 3D `preds_fixed` after continuity fixes (the main data that will be used for training)
+
 ### How to generate synthetic dataset (Example for PipeForge3D):
 
 In case you have only a dataset of 3D files, and you want to create random holes in them \
@@ -190,7 +196,7 @@ voxel_size = 1.0
 
 Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
-- **(Fast Performance Flow)** `[6 2D -> 6 2D | Direct Fusion]`: 
+- **(Fast Performance Flow)** `[6 2D -> 6 2D | Direct Fusion | Input Merge]`: 
    1. Crop and Project both the `3d ground truth` and `3d predicted labels`:
       1. 6 views of `2d ground truth`
       2. 6 views of `2d predicted labels`

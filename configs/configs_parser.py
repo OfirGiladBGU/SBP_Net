@@ -62,6 +62,11 @@ CONFIG_FILENAME = "parse2022_SC_32.yaml"
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_400_LC_32.yaml"
 
 
+# TODO: Use for Ex_Sota:
+
+CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_unet3d.yaml"
+
+
 # TODO: Use for Parse2022 test:
 
 # CONFIG_FILENAME = "parse2022_test/parse2022_LC_32_test.yaml"
@@ -125,6 +130,7 @@ UPPER_THRESHOLD_2D = config_data.get("UPPER_THRESHOLD_2D", 0.9)
 TASK_TYPE = task_type_map.get(config_data.get("TASK_TYPE", "PATCH_HOLES"))
 START_INDEX = config_data.get("START_INDEX", -1)
 STOP_INDEX = config_data.get("STOP_INDEX", -1)
+INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
 
 # Read Weights Configurations
 WEIGHTS_1D_PATH = config_data.get("WEIGHTS_1D_PATH", None)
@@ -255,13 +261,13 @@ PREDS_FIXED_COMPONENTS_3D = CROPS_PATH.joinpath("preds_fixed_components_3d")
 PREDS_ADVANCED_FIXED_3D = CROPS_PATH.joinpath("preds_advanced_fixed_3d")  # INPUT (Continuity fixed)
 PREDS_ADVANCED_FIXED_COMPONENTS_3D = CROPS_PATH.joinpath("preds_advanced_fixed_components_3d")
 
-# RECONSTRUCT PATHS
+# RECONSTRUCT PATHS (Info: Reconstruct 3D data by merging 6 2D depth images reprojected into 3D space)
 LABELS_3D_RECONSTRUCT = CROPS_PATH.joinpath("labels_3d_reconstruct")  # INPUT (Direct repair)
 PREDS_3D_RECONSTRUCT = CROPS_PATH.joinpath("preds_3d_reconstruct")  # INPUT (Direct repair)
 PREDS_FIXED_3D_RECONSTRUCT = CROPS_PATH.joinpath("preds_fixed_3d_reconstruct")  # INPUT (Direct repair)
 PREDS_ADVANCED_FIXED_3D_RECONSTRUCT = CROPS_PATH.joinpath("preds_advanced_fixed_3d_reconstruct")  # INPUT (Direct repair)
 
-# FUSION PATHS
+# FUSION PATHS (Info: Fusion of the 3D reconstructions from the 2D reprojections, with the base 3D data)
 PREDS_3D_FUSION = CROPS_PATH.joinpath("preds_3d_fusion")  # INPUT (Fusion data)
 PREDS_FIXED_3D_FUSION = CROPS_PATH.joinpath("preds_fixed_3d_fusion")  # INPUT (Fusion data)
 PREDS_ADVANCED_FIXED_3D_FUSION = CROPS_PATH.joinpath("preds_advanced_fixed_3d_fusion")  # INPUT (Fusion data)

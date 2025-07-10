@@ -457,6 +457,8 @@ def create_2d_projections_and_3d_cubes_for_training():
 
     # Create Output Folders
     for output_folder in output_folders.values():
+        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder:
+            continue
         os.makedirs(output_folder, exist_ok=True)
 
     # Get the filepaths
@@ -624,75 +626,105 @@ def create_2d_projections_and_3d_cubes_for_training():
             # Project 3D to 2D #
             ####################
 
-            # Project 3D to 2D (Labels)
-            label_projections = project_3d_to_2d(
-                data_3d=label_cube,
-                projection_options=projection_options,
-                component_3d=label_components_cube,
-                source_data_filepath=label_filepath
-            )
+            if INCLUDE_2D_PROJECTIONS:
+                # Project 3D to 2D (Labels)
+                label_projections = project_3d_to_2d(
+                    data_3d=label_cube,
+                    projection_options=projection_options,
+                    component_3d=label_components_cube,
+                    source_data_filepath=label_filepath
+                )
 
-            # Project 3D to 2D (Preds)
-            pred_projections = project_3d_to_2d(
-                data_3d=pred_cube,
-                projection_options=projection_options,
-                component_3d=pred_components_cube,
-                source_data_filepath=pred_filepath
-            )
+                # Project 3D to 2D (Preds)
+                pred_projections = project_3d_to_2d(
+                    data_3d=pred_cube,
+                    projection_options=projection_options,
+                    component_3d=pred_components_cube,
+                    source_data_filepath=pred_filepath
+                )
 
-            # Project 3D to 2D (Preds Fixed)
-            pred_fixed_projections = project_3d_to_2d(
-                data_3d=pred_fixed_cube,
-                projection_options=projection_options,
-                component_3d=pred_fixed_components_cube,
-                source_data_filepath=pred_filepath
-            )
+                # Project 3D to 2D (Preds Fixed)
+                pred_fixed_projections = project_3d_to_2d(
+                    data_3d=pred_fixed_cube,
+                    projection_options=projection_options,
+                    component_3d=pred_fixed_components_cube,
+                    source_data_filepath=pred_filepath
+                )
+            else:
+                label_projections = None
+                pred_projections = None
+                pred_fixed_projections = None
 
             ########################
             # Density Filter Crops #
             ########################
 
-            condition_list = [True] * len(IMAGES_6_VIEWS)
-            for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
-                label_image = label_projections[f"{image_view}_image"]
-                pred_image = pred_projections[f"{image_view}_image"]
-                pred_fixed_image = pred_fixed_projections[f"{image_view}_image"]
+            if INCLUDE_2D_PROJECTIONS:
+                condition_list = [True] * len(IMAGES_6_VIEWS)
+                for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
+                    label_image = label_projections[f"{image_view}_image"]
+                    pred_image = pred_projections[f"{image_view}_image"]
+                    pred_fixed_image = pred_fixed_projections[f"{image_view}_image"]
 
-                # Repair the labels - TODO: Check how to do smartly
-                # label_projections[f"{image_6_view}_repaired_image"] = image_missing_connected_components_removal(
-                #     pred=pred_image,
-                #     label=label_image
-                # )
-                # repaired_label_image = label_projections[f"{image_6_view}_repaired_image"]
+                    # Repair the labels - TODO: Check how to do smartly
+                    # label_projections[f"{image_6_view}_repaired_image"] = image_missing_connected_components_removal(
+                    #     pred=pred_image,
+                    #     label=label_image
+                    # )
+                    # repaired_label_image = label_projections[f"{image_6_view}_repaired_image"]
 
-                if APPLY_MEDIAN_FILTER:
-                    label_image = cv2.medianBlur(label_image, ksize=5)
-                    pred_image = cv2.medianBlur(pred_image, ksize=5)
-                    pred_fixed_image = cv2.medianBlur(pred_fixed_image, ksize=5)
-                    pred_fixed_image = outlier_removal_2d(pred_data=pred_fixed_image, label_data=label_image)
+                    if APPLY_MEDIAN_FILTER:
+                        label_image = cv2.medianBlur(label_image, ksize=5)
+                        pred_image = cv2.medianBlur(pred_image, ksize=5)
+                        pred_fixed_image = cv2.medianBlur(pred_fixed_image, ksize=5)
+                        pred_fixed_image = outlier_removal_2d(pred_data=pred_fixed_image, label_data=label_image)
 
-                    label_projections[f"{image_view}_image"] = label_image
-                    pred_projections[f"{image_view}_image"] = pred_image
-                    pred_fixed_projections[f"{image_view}_image"] = pred_fixed_image
+                        label_projections[f"{image_view}_image"] = label_image
+                        pred_projections[f"{image_view}_image"] = pred_image
+                        pred_fixed_projections[f"{image_view}_image"] = pred_fixed_image
+
+                    # Check Condition (If condition fails, mark the view as invalid):
+                    condition = [
+                        not (UPPER_THRESHOLD_2D > np.count_nonzero(label_image) > LOWER_THRESHOLD_2D),
+                        # not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_image) > LOWER_THRESHOLD_2D),  # Optional
+                        not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_fixed_image) > LOWER_THRESHOLD_2D),
+                    ]
+
+                    # Check Condition (If condition fails, skip the current view):
+                    if any(condition):
+                        condition_list[view_idx] = False
+
+                        cubes_data[cube_idx].update({
+                            f"{image_view}_valid": False
+                        })
+                    else:
+                        cubes_data[cube_idx].update({
+                            f"{image_view}_valid": True
+                        })
+            else:
+                condition_list = [True]
 
                 # Check Condition (If condition fails, mark the view as invalid):
                 condition = [
-                    not (UPPER_THRESHOLD_2D > np.count_nonzero(label_image) > LOWER_THRESHOLD_2D),
-                    # not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_image) > LOWER_THRESHOLD_2D),  # Optional
-                    not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_fixed_image) > LOWER_THRESHOLD_2D),
+                    not (UPPER_THRESHOLD_2D > np.count_nonzero(label_cube) > LOWER_THRESHOLD_2D),
+                    # not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_cube) > LOWER_THRESHOLD_2D),  # Optional
+                    not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_fixed_cube) > LOWER_THRESHOLD_2D),
                 ]
 
                 # Check Condition (If condition fails, skip the current view):
                 if any(condition):
-                    condition_list[view_idx] = False
+                    condition_list[0] = False
 
-                    cubes_data[cube_idx].update({
-                        f"{image_view}_valid": False
-                    })
+                    # TODO: TBD differentiate column name
+                    # cubes_data[cube_idx].update({
+                    #     f"{image_view}_valid": False
+                    # })
                 else:
-                    cubes_data[cube_idx].update({
-                        f"{image_view}_valid": True
-                    })
+                    # cubes_data[cube_idx].update({
+                    #     f"{image_view}_valid": True
+                    # })
+                    pass
+
 
             # Validate that at least 1 condition is met (if not, skip cube data)
             if not any(condition_list):
@@ -737,115 +769,109 @@ def create_2d_projections_and_3d_cubes_for_training():
             else:
                 raise ValueError("Invalid Task Type")
 
-            # Project 3D to 2D (Preds Fixed Advanced)
-            source_data_filepath = pred_fixed_filepath
-            pred_advanced_fixed_projections = project_3d_to_2d(
-                data_3d=pred_advanced_fixed_cube,
-                projection_options=projection_options,
-                component_3d=pred_advanced_fixed_components_cube,
-                source_data_filepath=source_data_filepath
-            )
+            if INCLUDE_2D_PROJECTIONS:
+                # Project 3D to 2D (Preds Fixed Advanced)
+                source_data_filepath = pred_fixed_filepath
+                pred_advanced_fixed_projections = project_3d_to_2d(
+                    data_3d=pred_advanced_fixed_cube,
+                    projection_options=projection_options,
+                    component_3d=pred_advanced_fixed_components_cube,
+                    source_data_filepath=source_data_filepath
+                )
 
-            ########################
-            # Continuity Fix in 2D #
-            ########################
+                ########################
+                # Continuity Fix in 2D #
+                ########################
 
-            for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
-                label_image = label_projections[f"{image_view}_image"]
-                pred_advanced_fixed_image = pred_advanced_fixed_projections[f"{image_view}_image"]
+                for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
+                    label_image = label_projections[f"{image_view}_image"]
+                    pred_advanced_fixed_image = pred_advanced_fixed_projections[f"{image_view}_image"]
 
-                # Used mainly for noisy PCD projections
-                if APPLY_MEDIAN_FILTER:
-                    pred_advanced_fixed_image = cv2.medianBlur(pred_advanced_fixed_image, ksize=5)
-                    pred_advanced_fixed_image = outlier_removal_2d(
-                        pred_data=pred_advanced_fixed_image,
-                        label_data=label_image
-                    )
-
-                    pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
-
-                if TASK_TYPE == TaskType.SINGLE_COMPONENT:
-                    if APPLY_CONTINUITY_FIX_2D:
-                        # Update the pred_advanced_fixed_image
-                        pred_advanced_fixed_image = components_continuity_2d_single_component(
-                            label_image=label_image,
-                            pred_advanced_fixed_image=pred_advanced_fixed_image,
-                            reverse_mode=False,
-                            connectivity_type=TRAIN_CONNECTIVITY_TYPE_2D,
-                            binary_diff=False,
-                            hard_condition=False
+                    # Used mainly for noisy PCD projections
+                    if APPLY_MEDIAN_FILTER:
+                        pred_advanced_fixed_image = cv2.medianBlur(pred_advanced_fixed_image, ksize=5)
+                        pred_advanced_fixed_image = outlier_removal_2d(
+                            pred_data=pred_advanced_fixed_image,
+                            label_data=label_image
                         )
-                    pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
 
-                    # Calculate the connected components for the advanced fixed preds
-                    labeled_delta = connected_components_2d(data_2d=pred_advanced_fixed_image)[0]
-                    pred_advanced_fixed_projections[f"{image_view}_components"] = color.label2rgb(
-                        label=labeled_delta
-                    ) * 255
+                        pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
 
-                elif TASK_TYPE == TaskType.LOCAL_CONNECTIVITY:
-                    if APPLY_CONTINUITY_FIX_2D:
-                        # Update the pred_advanced_fixed_image
-                        pred_advanced_fixed_image = components_continuity_2d_local_connectivity(
-                            label_image=label_image,
-                            pred_advanced_fixed_image=pred_advanced_fixed_image,
-                            reverse_mode=False,
-                            connectivity_type=TRAIN_CONNECTIVITY_TYPE_2D,
-                            binary_diff=False,
-                            hard_condition=False,
-                            apply_dilation_scope=BINARY_DILATION
-                        )
-                    pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
+                    if TASK_TYPE == TaskType.SINGLE_COMPONENT:
+                        if APPLY_CONTINUITY_FIX_2D:
+                            # Update the pred_advanced_fixed_image
+                            pred_advanced_fixed_image = components_continuity_2d_single_component(
+                                label_image=label_image,
+                                pred_advanced_fixed_image=pred_advanced_fixed_image,
+                                reverse_mode=False,
+                                connectivity_type=TRAIN_CONNECTIVITY_TYPE_2D,
+                                binary_diff=False,
+                                hard_condition=False
+                            )
+                        pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
 
-                elif TASK_TYPE == TaskType.PATCH_HOLES:
-                    pass
+                        # Calculate the connected components for the advanced fixed preds
+                        labeled_delta = connected_components_2d(data_2d=pred_advanced_fixed_image)[0]
+                        pred_advanced_fixed_projections[f"{image_view}_components"] = color.label2rgb(
+                            label=labeled_delta
+                        ) * 255
 
-                else:
-                    raise ValueError("Invalid Task Type")
+                    elif TASK_TYPE == TaskType.LOCAL_CONNECTIVITY:
+                        if APPLY_CONTINUITY_FIX_2D:
+                            # Update the pred_advanced_fixed_image
+                            pred_advanced_fixed_image = components_continuity_2d_local_connectivity(
+                                label_image=label_image,
+                                pred_advanced_fixed_image=pred_advanced_fixed_image,
+                                reverse_mode=False,
+                                connectivity_type=TRAIN_CONNECTIVITY_TYPE_2D,
+                                binary_diff=False,
+                                hard_condition=False,
+                                apply_dilation_scope=BINARY_DILATION
+                            )
+                        pred_advanced_fixed_projections[f"{image_view}_image"] = pred_advanced_fixed_image
 
-                # Log info
-                if np.array_equal(pred_advanced_fixed_image, label_image):
-                    cubes_data[cube_idx].update({
-                        f"{image_view}_advance_valid": False
-                    })
-                else:
-                    cubes_data[cube_idx].update({
-                        f"{image_view}_advance_valid": True
-                    })
+                    elif TASK_TYPE == TaskType.PATCH_HOLES:
+                        pass
 
-            ###############
-            # Export Data #
-            ###############
+                    else:
+                        raise ValueError("Invalid Task Type")
 
-            folder_2d_map = {
-                "labels_2d": label_projections,
-                "preds_2d": pred_projections,
-                "preds_fixed_2d": pred_fixed_projections,
-                "preds_advanced_fixed_2d": pred_advanced_fixed_projections
-            }
+                    # Log info
+                    if np.array_equal(pred_advanced_fixed_image, label_image):
+                        cubes_data[cube_idx].update({
+                            f"{image_view}_advance_valid": False
+                        })
+                    else:
+                        cubes_data[cube_idx].update({
+                            f"{image_view}_advance_valid": True
+                        })
+            else:
+                pred_advanced_fixed_projections = None
 
-            folder_2d_components_map = {
-                "labels_components_2d": label_projections,
-                "preds_components_2d": pred_projections,
-                "preds_fixed_components_2d": pred_fixed_projections,
-                "preds_advanced_fixed_components_2d": pred_advanced_fixed_projections
-            }
+            ##################
+            # Export Data 2D #
+            ##################
 
-            for image_view in IMAGES_6_VIEWS:
-                output_2d_format = f"{output_idx}_{cube_idx_str}_{image_view}"
+            if INCLUDE_2D_PROJECTIONS:
+                folder_2d_map = {
+                    "labels_2d": label_projections,
+                    "preds_2d": pred_projections,
+                    "preds_fixed_2d": pred_fixed_projections,
+                    "preds_advanced_fixed_2d": pred_advanced_fixed_projections
+                }
 
-                for key, value in folder_2d_map.items():
-                    data_2d = value[f"{image_view}_image"]
-                    save_filename = os.path.join(output_folders[key], output_2d_format)
-                    convert_numpy_to_data_file(
-                        numpy_data=data_2d,
-                        source_data_filepath="dumpy.png",
-                        save_filename=save_filename
-                    )
+                folder_2d_components_map = {
+                    "labels_components_2d": label_projections,
+                    "preds_components_2d": pred_projections,
+                    "preds_fixed_components_2d": pred_fixed_projections,
+                    "preds_advanced_fixed_components_2d": pred_advanced_fixed_projections
+                }
 
-                if TASK_TYPE == TaskType.SINGLE_COMPONENT:
-                    for key, value in folder_2d_components_map.items():
-                        data_2d = value[f"{image_view}_components"]
+                for image_view in IMAGES_6_VIEWS:
+                    output_2d_format = f"{output_idx}_{cube_idx_str}_{image_view}"
+
+                    for key, value in folder_2d_map.items():
+                        data_2d = value[f"{image_view}_image"]
                         save_filename = os.path.join(output_folders[key], output_2d_format)
                         convert_numpy_to_data_file(
                             numpy_data=data_2d,
@@ -853,11 +879,27 @@ def create_2d_projections_and_3d_cubes_for_training():
                             save_filename=save_filename
                         )
 
-                elif TASK_TYPE in [TaskType.LOCAL_CONNECTIVITY, TaskType.PATCH_HOLES]:
-                    pass
+                    if TASK_TYPE == TaskType.SINGLE_COMPONENT:
+                        for key, value in folder_2d_components_map.items():
+                            data_2d = value[f"{image_view}_components"]
+                            save_filename = os.path.join(output_folders[key], output_2d_format)
+                            convert_numpy_to_data_file(
+                                numpy_data=data_2d,
+                                source_data_filepath="dumpy.png",
+                                save_filename=save_filename
+                            )
 
-                else:
-                    raise ValueError("Invalid Task Type")
+                    elif TASK_TYPE in [TaskType.LOCAL_CONNECTIVITY, TaskType.PATCH_HOLES]:
+                        pass
+
+                    else:
+                        raise ValueError("Invalid Task Type")
+            else:
+                pass
+
+            ##################
+            # Export Data 3D #
+            ##################
 
             output_3d_format = f"{output_idx}_{cube_idx_str}"
 
@@ -995,6 +1037,8 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
 
     # Create Output Folders
     for output_folder in output_folders.values():
+        if not INCLUDE_2D_PROJECTIONS and "2d" in output_folder:
+            continue
         os.makedirs(output_folder, exist_ok=True)
 
     # Evals cubes backup (for density filter)
@@ -1115,78 +1159,108 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
                 # Project 3D to 2D #
                 ####################
 
-                # Project 3D to 2D (data)
-                data_projections = project_3d_to_2d(
-                    data_3d=data_cube,
-                    projection_options=projection_options,
-                    source_data_filepath=data_filepath,
-                    component_3d=data_components_cube
-                )
+                if INCLUDE_2D_PROJECTIONS:
+                    # Project 3D to 2D (data)
+                    data_projections = project_3d_to_2d(
+                        data_3d=data_cube,
+                        projection_options=projection_options,
+                        source_data_filepath=data_filepath,
+                        component_3d=data_components_cube
+                    )
+                else:
+                    data_projections = None
 
                 ########################
                 # Density Filter Crops #
                 ########################
 
-                condition_list = [True] * len(IMAGES_6_VIEWS)
-                for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
-                    # Calculate condition according to evals only!
-                    if evals_cubes_backup is not None and data_key == "evals":
-                        data_image = data_projections[f"{image_view}_image"]
-                        evals_cubes_backup[cube_idx][f"{image_view}_image"] = data_image
-                    else:
-                        data_image = evals_cubes_backup[cube_idx][f"{image_view}_image"]
+                if INCLUDE_2D_PROJECTIONS:
+                    condition_list = [True] * len(IMAGES_6_VIEWS)
+                    for view_idx, image_view in enumerate(IMAGES_6_VIEWS):
+                        # Calculate condition according to evals only!
+                        if evals_cubes_backup is not None and data_key == "evals":
+                            data_image = data_projections[f"{image_view}_image"]
+                            evals_cubes_backup[cube_idx][f"{image_view}_image"] = data_image
+                        else:
+                            data_image = evals_cubes_backup[cube_idx][f"{image_view}_image"]
+
+                        condition = [
+                            not (UPPER_THRESHOLD_2D > np.count_nonzero(data_image) > LOWER_THRESHOLD_2D)
+                        ]
+
+                        # Check Condition (If condition fails, skip the current view):
+                        if any(condition):
+                            condition_list[view_idx] = False
+
+                            cubes_data[cube_idx].update({
+                                f"{image_view}_valid": False
+                            })
+                        else:
+                            cubes_data[cube_idx].update({
+                                f"{image_view}_valid": True
+                            })
+                else:
+                    condition_list = [True]
 
                     condition = [
-                        not (UPPER_THRESHOLD_2D > np.count_nonzero(data_image) > LOWER_THRESHOLD_2D)
+                        not (UPPER_THRESHOLD_2D > np.count_nonzero(data_cube) > LOWER_THRESHOLD_2D)
                     ]
 
                     # Check Condition (If condition fails, skip the current view):
                     if any(condition):
-                        condition_list[view_idx] = False
+                        condition_list[0] = False
 
-                        cubes_data[cube_idx].update({
-                            f"{image_view}_valid": False
-                        })
+                        # cubes_data[cube_idx].update({
+                        #     f"{image_view}_valid": False
+                        # })
                     else:
-                        cubes_data[cube_idx].update({
-                            f"{image_view}_valid": True
-                        })
+                        # cubes_data[cube_idx].update({
+                        #     f"{image_view}_valid": True
+                        # })
+                        pass
 
                 # Validate that at least 1 condition is met (if not, pop cube data)
                 if not any(condition_list):
                     continue
 
-                ###############
-                # Export Data #
-                ###############
+                ##################
+                # Export Data 2D #
+                ##################
 
-                for image_view in IMAGES_6_VIEWS:
-                    output_2d_format = f"{output_idx}_{cube_idx_str}_{image_view}"
+                if INCLUDE_2D_PROJECTIONS:
+                    for image_view in IMAGES_6_VIEWS:
+                        output_2d_format = f"{output_idx}_{cube_idx_str}_{image_view}"
 
-                    # 2D Folders - data
-                    data_2d = data_projections[f"{image_view}_image"]
-                    save_filename = os.path.join(output_folders[f"{data_key}_2d"], output_2d_format)
-                    convert_numpy_to_data_file(
-                        numpy_data=data_2d,
-                        source_data_filepath="dumpy.png",
-                        save_filename=save_filename
-                    )
-
-                    if TASK_TYPE == TaskType.SINGLE_COMPONENT:
-                        # 2D Folders - data components
-                        data_components_2d = data_projections[f"{image_view}_components"]
-                        save_filename = os.path.join(output_folders[f"{data_key}_components_2d"], output_2d_format)
+                        # 2D Folders - data
+                        data_2d = data_projections[f"{image_view}_image"]
+                        save_filename = os.path.join(output_folders[f"{data_key}_2d"], output_2d_format)
                         convert_numpy_to_data_file(
-                            numpy_data=data_components_2d,
+                            numpy_data=data_2d,
                             source_data_filepath="dumpy.png",
                             save_filename=save_filename
                         )
 
-                    elif TASK_TYPE in [TaskType.LOCAL_CONNECTIVITY, TaskType.PATCH_HOLES]:
-                        pass
+                        if TASK_TYPE == TaskType.SINGLE_COMPONENT:
+                            # 2D Folders - data components
+                            data_components_2d = data_projections[f"{image_view}_components"]
+                            save_filename = os.path.join(output_folders[f"{data_key}_components_2d"], output_2d_format)
+                            convert_numpy_to_data_file(
+                                numpy_data=data_components_2d,
+                                source_data_filepath="dumpy.png",
+                                save_filename=save_filename
+                            )
 
-                    else:
-                        raise ValueError("Invalid Task Type")
+                        elif TASK_TYPE in [TaskType.LOCAL_CONNECTIVITY, TaskType.PATCH_HOLES]:
+                            pass
+
+                        else:
+                            raise ValueError("Invalid Task Type")
+                else:
+                    pass
+
+                ##################
+                # Export Data 3D #
+                ##################
 
                 output_3d_format = f"{output_idx}_{cube_idx_str}"
 
