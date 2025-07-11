@@ -161,7 +161,7 @@ def prepare_2d_projections_and_3d_cubes(input_filepath, input_folder):
                 eval_image = eval_projections[f"{image_view}_image"]
 
                 condition = [
-                    not (UPPER_THRESHOLD_2D > np.count_nonzero(eval_image) > LOWER_THRESHOLD_2D)
+                    not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(eval_image) > DENSITY_LOWER_THRESHOLD)
                 ]
 
                 # Check Condition (If condition fails, skip the current view):

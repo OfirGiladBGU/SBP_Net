@@ -685,9 +685,9 @@ def create_2d_projections_and_3d_cubes_for_training():
 
                     # Check Condition (If condition fails, mark the view as invalid):
                     condition = [
-                        not (UPPER_THRESHOLD_2D > np.count_nonzero(label_image) > LOWER_THRESHOLD_2D),
-                        # not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_image) > LOWER_THRESHOLD_2D),  # Optional
-                        not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_fixed_image) > LOWER_THRESHOLD_2D),
+                        not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(label_image) > DENSITY_LOWER_THRESHOLD),
+                        # not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(pred_image) > DENSITY_LOWER_THRESHOLD),  # Optional
+                        not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(pred_fixed_image) > DENSITY_LOWER_THRESHOLD),
                     ]
 
                     # Check Condition (If condition fails, skip the current view):
@@ -706,9 +706,9 @@ def create_2d_projections_and_3d_cubes_for_training():
 
                 # Check Condition (If condition fails, mark the view as invalid):
                 condition = [
-                    not (UPPER_THRESHOLD_2D > np.count_nonzero(label_cube) > LOWER_THRESHOLD_2D),
-                    # not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_cube) > LOWER_THRESHOLD_2D),  # Optional
-                    not (UPPER_THRESHOLD_2D > np.count_nonzero(pred_fixed_cube) > LOWER_THRESHOLD_2D),
+                    not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(label_cube) > DENSITY_LOWER_THRESHOLD),
+                    # not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(pred_cube) > DENSITY_LOWER_THRESHOLD),  # Optional
+                    not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(pred_fixed_cube) > DENSITY_LOWER_THRESHOLD),
                 ]
 
                 # Check Condition (If condition fails, skip the current view):
@@ -1185,7 +1185,7 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
                             data_image = evals_cubes_backup[cube_idx][f"{image_view}_image"]
 
                         condition = [
-                            not (UPPER_THRESHOLD_2D > np.count_nonzero(data_image) > LOWER_THRESHOLD_2D)
+                            not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(data_image) > DENSITY_LOWER_THRESHOLD)
                         ]
 
                         # Check Condition (If condition fails, skip the current view):
@@ -1203,7 +1203,7 @@ def create_2d_projections_and_3d_cubes_for_evaluation(include_labels=False):
                     condition_list = [True]
 
                     condition = [
-                        not (UPPER_THRESHOLD_2D > np.count_nonzero(data_cube) > LOWER_THRESHOLD_2D)
+                        not (DENSITY_UPPER_THRESHOLD > np.count_nonzero(data_cube) > DENSITY_LOWER_THRESHOLD)
                     ]
 
                     # Check Condition (If condition fails, skip the current view):
