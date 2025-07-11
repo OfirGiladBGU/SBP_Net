@@ -131,6 +131,7 @@ TASK_TYPE = task_type_map.get(config_data.get("TASK_TYPE", "PATCH_HOLES"))
 START_INDEX = config_data.get("START_INDEX", -1)
 STOP_INDEX = config_data.get("STOP_INDEX", -1)
 INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
+MERGE_WITH_SOURCE = config_data.get("MERGE_WITH_SOURCE", True)  # Info: If True, the 3D crops will be merged with the source data 3D data.
 
 # Read Weights Configurations
 WEIGHTS_1D_PATH = config_data.get("WEIGHTS_1D_PATH", None)

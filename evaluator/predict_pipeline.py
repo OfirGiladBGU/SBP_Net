@@ -568,6 +568,8 @@ def full_predict(args: argparse.Namespace,
 
 
 def full_merge(data_3d_stem, data_type: DataType, log_data=None, source_data_3d_folder=None):
+    merge_with_source = MERGE_WITH_SOURCE
+
     # LOAD DATA #
     if data_type == DataType.TRAIN:
         if log_data is None:
@@ -602,6 +604,8 @@ def full_merge(data_3d_stem, data_type: DataType, log_data=None, source_data_3d_
     # os.makedirs(output_folder, exist_ok=True)
 
     input_data = convert_data_file_to_numpy(data_filepath=input_filepath, apply_data_threshold=True)
+    if not merge_with_source:
+        input_data = np.zeros_like(input_data)
 
     first_column = log_data.columns[0]
     regex_pattern = f"{data_3d_stem}_.*"
