@@ -3,9 +3,8 @@ import torch
 import torch.nn as nn
 import pathlib
 import sys
+sys.path.append(str(pathlib.Path(__file__).parent))
 
-folder_path = pathlib.Path(__file__).parent
-sys.path.append(str(folder_path))
 from model import UNet3D
 
 
