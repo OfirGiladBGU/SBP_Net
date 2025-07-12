@@ -163,6 +163,13 @@ class Trainer(object):
                         data={"Train Loss": train_avg_loss, "Test Loss": test_avg_loss},
                         step=epoch
                     )
+                if epoch % 5 == 0:
+                    print(
+                        f"[Model: '{self.model.model_name}'] Saving Model Weights... "
+                        f"(Epoch: {epoch}, Train Time Elapsed: {datetime.datetime.now() - self.start_time})"
+                    )
+                    model_parameters = copy.deepcopy(self.model.state_dict())
+                    torch.save(model_parameters, self.args.weights_filepath)
         except (KeyboardInterrupt, SystemExit):
             print(f"[Model: '{self.model.model_name}'] Manual Interruption!")
 
