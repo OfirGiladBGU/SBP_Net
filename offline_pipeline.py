@@ -107,11 +107,16 @@ def full_predict(data_3d_stem, data_type: DataType, log_data=None, data_3d_folde
     # Single-threading - Sequential
     # for data_3d_cube_filepath in tqdm(data_3d_cube_filepaths):
     #     single_predict(
+    #         args=args,
     #         data_3d_filepath=data_3d_cube_filepath,
     #         data_3d_folder=data_3d_folder,
     #         data_2d_folder=data_2d_folder,
     #         log_data=log_data,
-    #         enable_debug=True
+    #         enable_debug=True,
+    #         run_2d_flow=run_2d_flow,
+    #         run_3d_flow=run_3d_flow,
+    #         export_2d=export_2d,
+    #         export_3d=export_3d
     #     )
 
     # Multi-threading
