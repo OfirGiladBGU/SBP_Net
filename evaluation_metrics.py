@@ -873,7 +873,7 @@ def full_folder_predict(data_type: DataType):
         print(output_str)
 
     ###################
-    # Test Dice Score #
+    # Test 3D Metrics #
     ###################
 
     if test_3d_metrics:
@@ -927,9 +927,9 @@ def full_folder_predict(data_type: DataType):
             output_str += f"AVG {key}: {mean(value)}\n"
         print(output_str)
 
-    ###########################
-    # Test Components Reduced #
-    ###########################
+    ##########################
+    # Test 3D Custom Metrics #
+    ##########################
 
     if test_3d_custom_metrics:
         # Disable 2D Export for 3D metrics
