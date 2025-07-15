@@ -194,10 +194,22 @@ def prepare_2d_projections_and_3d_cubes(input_filepath, input_folder):
     return log_data, projections_data
 
 
-def full_folder_predict(input_folder, run_2d_flow=True, run_3d_flow=True, export_2d=True, export_3d=True):
+def full_folder_predict(input_folder):
+    if args.export_2d and args.parallel_predict:
+        raise ValueError(
+            "When export_2d is True, parallel_predict should be False. "
+            "This is because the 2D export is based matplotlib (Which cannot work in parallel)."
+        )
+    
+    ################
+    # Prepare Data #
+    ################
     data_3d_list = list(pathlib.Path(input_folder).rglob("*.*"))
     data_3d_count = len(data_3d_list)
 
+    #########################
+    # Run Predict and Merge #
+    #########################
     for idx, data_3d_filepath in enumerate(data_3d_list):
         data_3d_stem = get_data_file_stem(data_filepath=data_3d_filepath, relative_to=input_folder)
         data_3d_extension = get_data_file_extension(data_filepath=data_3d_filepath)
@@ -228,28 +240,44 @@ def full_folder_predict(input_folder, run_2d_flow=True, run_3d_flow=True, export
             f"(Timestamp: {start_timestamp})"
         )
 
-        # Multi-threading
-        futures = []
-        with ThreadPoolExecutor() as executor:
-            # Submit all tasks
-            for data_3d_cube_filepath in data_3d_cube_filepaths:
-                futures.append(
-                    executor.submit(
-                        single_predict,
-                        args=args,
-                        data_3d_filepath=data_3d_cube_filepath,
-                        projections_data=projections_data,
-                        log_data=log_data,
-                        enable_debug=False,
-                        run_2d_flow=run_2d_flow,
-                        run_3d_flow=run_3d_flow,
-                        export_2d=export_2d,
-                        export_3d=export_3d
-                    )
+        # Single-threading - Sequential
+        if args.parallel_predict is False:
+            for data_3d_cube_filepath in tqdm(data_3d_cube_filepaths):
+                single_predict(
+                    args=args,
+                    data_3d_filepath=data_3d_cube_filepath,
+                    projections_data=projections_data,
+                    log_data=log_data,
+                    enable_debug=True,
+                    run_2d_flow=args.run_2d_flow,
+                    run_3d_flow=args.run_3d_flow,
+                    export_2d=args.export_2d,
+                    export_3d=args.export_3d
                 )
-            # "Join" on all tasks by waiting for each future to complete.
-            for future in tqdm(futures):
-                future.result()  # This will block until the future is done.
+        
+        # Multi-threading
+        else:
+            futures = []
+            with ThreadPoolExecutor() as executor:
+                # Submit all tasks
+                for data_3d_cube_filepath in data_3d_cube_filepaths:
+                    futures.append(
+                        executor.submit(
+                            single_predict,
+                            args=args,
+                            data_3d_filepath=data_3d_cube_filepath,
+                            projections_data=projections_data,
+                            log_data=log_data,
+                            enable_debug=False,
+                            run_2d_flow=args.run_2d_flow,
+                            run_3d_flow=args.run_3d_flow,
+                            export_2d=args.export_2d,
+                            export_3d=args.export_3d
+                        )
+                    )
+                # "Join" on all tasks by waiting for each future to complete.
+                for future in tqdm(futures):
+                    future.result()  # This will block until the future is done.
 
         end_time = datetime.datetime.now()
         end_timestamp = end_time.strftime('%Y-%m-%d_%H-%M-%S')
@@ -270,22 +298,12 @@ def full_folder_predict(input_folder, run_2d_flow=True, run_3d_flow=True, export
 def main():
     # TODO: Update as required
     input_folder = EVALS
-    run_2d_flow = True
-    run_3d_flow = True
-    export_2d = True
-    export_3d = True
 
     # TODO: Same as before
     init_pipeline_models(args=args)
 
     # TODO: Create online full predict function
-    full_folder_predict(
-        input_folder=input_folder,
-        run_2d_flow=run_2d_flow,
-        run_3d_flow=run_3d_flow,
-        export_2d=export_2d,
-        export_3d=export_3d
-    )
+    full_folder_predict(input_folder=input_folder)
 
 
 if __name__ == "__main__":
@@ -308,6 +326,18 @@ if __name__ == "__main__":
                         help='Which 3D model to use')
     parser.add_argument('--input-size-model-3d', type=tuple, default=(1, 32, 32, 32), metavar='N',
                         help='Which input size the 3D model should to use')
+    
+    # Runtime flags
+    parser.add_argument('--run-2d-flow', action='store_true', default=True,
+                        help='Run the 2D flow')
+    parser.add_argument('--run-3d-flow', action='store_true', default=True,
+                        help='Run the 3D flow')
+    parser.add_argument('--export-2d', default=False,
+                        help='Export the 2D predictions')
+    parser.add_argument('--export-3d', action='store_true', default=True,
+                        help='Export the 3D predictions')
+    parser.add_argument('--parallel-predict', action='store_true', default=True,
+                        help='Run the prediction in parallel')
 
     args = parser.parse_args()
     args.mode = "online"
@@ -324,10 +354,22 @@ if __name__ == "__main__":
     # args.model_2d = "ae_6_2d_to_6_2d"
     # args.input_size_model_2d = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
-    args.model_2d = "ae_2d_to_2d"
-    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+    # args.model_2d = "ae_2d_to_2d"
+    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
     # args.model_3d = "ae_3d_to_3d"
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+
+
+    # Paper config #
+    # args.model_2d = "ae_2d_to_2d"
+    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+
+    # SOTA Unet3D config #
+    args.model_3d = "unet3d"
+    args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    args.run_2d_flow = False
+    args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
 
     main()
