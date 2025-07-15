@@ -625,6 +625,12 @@ def full_folder_predict(data_type: DataType):
     ###################
     outputs = {}
     if test_2d_metrics:
+        # Disable 3D Flow for 2D metrics
+        prev_run_3d_flow = args.run_3d_flow
+        prev_export_3d = args.export_3d
+        args.run_3d_flow = False
+        args.export_3d = False
+
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Predicting...")
             full_predict(
@@ -636,6 +642,9 @@ def full_folder_predict(data_type: DataType):
                 run_3d_flow=False,
                 export_3d=False
             )
+
+        args.run_3d_flow = prev_run_3d_flow
+        args.export_3d = prev_export_3d
 
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Calculating 2D Metrics...")
@@ -664,6 +673,12 @@ def full_folder_predict(data_type: DataType):
     if test_2d_custom_metrics:
         # TODO: Run the 2D models and compare the 2D results with the 2D GT
 
+        # Disable 3D Flow for 2D metrics
+        prev_run_3d_flow = args.run_3d_flow
+        prev_export_3d = args.export_3d
+        args.run_3d_flow = False
+        args.export_3d = False
+
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Predicting...")
             full_predict(
@@ -671,10 +686,11 @@ def full_folder_predict(data_type: DataType):
                 data_type=data_type,
                 log_data=log_data,
                 data_3d_folder=data_3d_folder,
-                data_2d_folder=data_2d_folder,
-                run_3d_flow=False,
-                export_3d=False
+                data_2d_folder=data_2d_folder
             )
+        
+        args.run_3d_flow = prev_run_3d_flow
+        args.export_3d = prev_export_3d
 
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Calculating 2D AVG L1 Error...")
@@ -700,6 +716,10 @@ def full_folder_predict(data_type: DataType):
     ###################
 
     if test_3d_metrics:
+        # Disable 2D Export for 3D metrics
+        prev_export_2d = args.export_2d
+        args.export_2d = False
+
         if run_full_predict:
             for idx, data_3d_stem in enumerate(data_3d_stem_list):
                 print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Predicting...")
@@ -708,10 +728,11 @@ def full_folder_predict(data_type: DataType):
                     data_type=data_type,
                     log_data=log_data,
                     data_3d_folder=data_3d_folder,
-                    data_2d_folder=data_2d_folder,
-                    export_2d=False
+                    data_2d_folder=data_2d_folder
                 )
             run_full_predict = False
+
+        args.export_2d = prev_export_2d
 
         if compare_crops_mode is False:
             for idx, data_3d_stem in enumerate(data_3d_stem_list):
@@ -744,6 +765,10 @@ def full_folder_predict(data_type: DataType):
     ###########################
 
     if test_3d_custom_metrics:
+        # Disable 2D Export for 3D metrics
+        prev_export_2d = args.export_2d
+        args.export_2d = False
+
         if run_full_predict:
             for idx, data_3d_stem in enumerate(data_3d_stem_list):
                 print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Predicting...")
@@ -752,10 +777,11 @@ def full_folder_predict(data_type: DataType):
                     data_type=data_type,
                     log_data=log_data,
                     data_3d_folder=data_3d_folder,
-                    data_2d_folder=data_2d_folder,
-                    export_2d=False
+                    data_2d_folder=data_2d_folder
                 )
             run_full_predict = False
+
+        args.export_2d = prev_export_2d
 
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Merging...")
@@ -864,8 +890,8 @@ if __name__ == "__main__":
     # args.model_2d = "ae_6_2d_to_6_2d"
     # args.input_size_model_2d = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
-    args.model_2d = "ae_2d_to_2d"
-    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+    # args.model_2d = "ae_2d_to_2d"
+    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
     # args.model_3d = "ae_3d_to_3d"
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
@@ -881,5 +907,6 @@ if __name__ == "__main__":
     args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     args.run_2d_flow = False
     args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
+    args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
 
     main()
