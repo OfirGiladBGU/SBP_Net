@@ -401,7 +401,7 @@ def downsample_pointcloud(pc, n_points=2048):
 
 
 def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
-    npoints = 2048
+    npoints = 2048  # choose your own cap
 
     ################
     # Full Metrics #
@@ -410,8 +410,11 @@ def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
     output_points = np.argwhere(output > 0)
     target_points = np.argwhere(target > 0)
 
+    cd = chamfer_distance(output_points, target_points)
+    hd = hausdorff_distance(output_points, target_points)
+
     # Downsample both to equal size for fair comparison
-    min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
+    min_size = min(len(output_points), len(target_points), npoints)
     sampled_output = downsample_pointcloud(output_points, min_size)
     sampled_target_1 = downsample_pointcloud(target_points, min_size)
     sampled_target_2 = downsample_pointcloud(target_points, min_size)
@@ -436,12 +439,17 @@ def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
     target_points = np.argwhere(masked_target > 0)
 
     if len(output_points) == 0:
+        cd_masked = 0.0
+        hd_masked = 0.0
         cdf_masked = 0.0
         hdf_masked = 0.0
 
     else:
+        cd_masked = chamfer_distance(output_points, target_points)
+        hd_masked = hausdorff_distance(output_points, target_points)
+
         # Downsample both to equal size for fair comparison
-        min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
+        min_size = min(len(output_points), len(target_points), npoints)
         sampled_output = downsample_pointcloud(output_points, min_size)
         sampled_target_1 = downsample_pointcloud(target_points, min_size)
         sampled_target_2 = downsample_pointcloud(target_points, min_size)
@@ -455,6 +463,10 @@ def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
         hdf_masked = hd_numerator / (hd_denominator + 1e-6)
 
     results = {
+        "Full CD": cd,
+        "Full HD": hd,
+        "Masked CD": cd_masked,
+        "Masked HD": hd_masked,
         "Full CDF": cdf,
         "Full HDF": hdf,
         "Masked CDF": cdf_masked,
