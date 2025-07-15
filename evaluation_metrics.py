@@ -400,7 +400,7 @@ def downsample_pointcloud(pc, n_points=2048):
     return pc[indices]
 
 
-def compute_3d_completion_metrics(output, target, mask):
+def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
     npoints = 2048
 
     ################
@@ -418,11 +418,11 @@ def compute_3d_completion_metrics(output, target, mask):
 
     cd_numerator = chamfer_distance(sampled_output, sampled_target_1)
     cd_denominator = chamfer_distance(sampled_target_1, sampled_target_2)
-    cdf = cd_numerator / (cd_denominator + 1e-6)
+    cdf = cd_numerator / (cd_denominator + epsilon)
 
     hd_numerator = hausdorff_distance(sampled_output, sampled_target_1)
     hd_denominator = hausdorff_distance(sampled_target_1, sampled_target_2)
-    hdf = hd_numerator / (hd_denominator + 1e-6)
+    hdf = hd_numerator / (hd_denominator + epsilon)
 
     ##################
     # Masked Metrics #
@@ -435,19 +435,24 @@ def compute_3d_completion_metrics(output, target, mask):
     output_points = np.argwhere(masked_output > 0)
     target_points = np.argwhere(masked_target > 0)
 
-    # Downsample both to equal size for fair comparison
-    min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
-    sampled_output = downsample_pointcloud(output_points, min_size)
-    sampled_target_1 = downsample_pointcloud(target_points, min_size)
-    sampled_target_2 = downsample_pointcloud(target_points, min_size)
+    if len(output_points) == 0:
+        cdf_masked = 0.0
+        hdf_masked = 0.0
 
-    cd_numerator = chamfer_distance(sampled_output, sampled_target_1)
-    cd_denominator = chamfer_distance(sampled_target_1, sampled_target_2)
-    cdf_masked = cd_numerator / (cd_denominator + 1e-6)
+    else:
+        # Downsample both to equal size for fair comparison
+        min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
+        sampled_output = downsample_pointcloud(output_points, min_size)
+        sampled_target_1 = downsample_pointcloud(target_points, min_size)
+        sampled_target_2 = downsample_pointcloud(target_points, min_size)
 
-    hd_numerator = hausdorff_distance(sampled_output, sampled_target_1)
-    hd_denominator = hausdorff_distance(sampled_target_1, sampled_target_2)
-    hdf_masked = hd_numerator / (hd_denominator + 1e-6)
+        cd_numerator = chamfer_distance(sampled_output, sampled_target_1)
+        cd_denominator = chamfer_distance(sampled_target_1, sampled_target_2)
+        cdf_masked = cd_numerator / (cd_denominator + 1e-6)
+
+        hd_numerator = hausdorff_distance(sampled_output, sampled_target_1)
+        hd_denominator = hausdorff_distance(sampled_target_1, sampled_target_2)
+        hdf_masked = hd_numerator / (hd_denominator + 1e-6)
 
     results = {
         "Full CDF": cdf,
