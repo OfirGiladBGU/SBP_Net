@@ -485,7 +485,7 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         for output_filepath in output_filepaths:
             output_filepath_extension = get_data_file_extension(data_filepath=output_filepath)
             output_filepath_stem = get_data_file_stem(data_filepath=output_filepath, relative_to=output_folder)
-            if output_folder == os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_2d"):
+            if output_folder == os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_3d"):
                 output_filepath_stem = str(output_filepath_stem).rsplit('_output', maxsplit=1)[0]
             output_filename = f"{output_filepath_stem}{output_filepath_extension}"
 
