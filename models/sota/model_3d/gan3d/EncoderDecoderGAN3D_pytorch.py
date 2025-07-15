@@ -149,8 +149,8 @@ class EncoderDecoderGAN:
             self.discriminator.load_state_dict(torch.load(os.path.join(MODEL_DIR, 'discriminator.h5')))
             print("Loaded discriminator model")
 
-        generator_optimizer = Adam(self.generator.parameters(),lr=0.0002, betas=(0.5, 0.999))
-        discriminator_optimizer = Adam(self.discriminator.parameters(),lr=0.0002, betas=(0.5, 0.999))
+        generator_optimizer = Adam(self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+        discriminator_optimizer = Adam(self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
         weight_mse = 0.999
         weight_bce = 0.001
