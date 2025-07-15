@@ -636,7 +636,7 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
     os.makedirs(name=os.path.dirname(save_filepath), exist_ok=True)
     pd.DataFrame(dice_scores_dict.items()).to_csv(save_filepath)
     scores_list = list(dice_scores_dict.values())
-    avg_dice =  sum(scores_list) / len(scores_list)    
+    avg_dice = sum(scores_list) / len(scores_list)    
     print(
         f"Dice Score Stats:\n"
         f"Average Dice Score: {avg_dice}\n"
