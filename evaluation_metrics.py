@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 from statistics import mean
 from skimage.metrics import structural_similarity as ssim
+from sklearn.neighbors import NearestNeighbors
 
 from configs.configs_parser import *
 from datasets.dataset_utils import *
@@ -225,16 +226,16 @@ def calculate_2d_metrics(data_3d_stem, data_2d_folder=None, apply_abs: bool = Tr
         output_data = convert_data_file_to_numpy(data_filepath=output_filepath_idx)
 
         if apply_abs:
-            delta_binary_mask = (np.abs(target_data - input_data) > 0.5)
+            delta_binary = (np.abs(target_data - input_data) > 0.5)
         else:
-            delta_binary_mask = (target_data - input_data) > 0.5
-        if delta_binary_mask.sum() == 0:
+            delta_binary = (target_data - input_data) > 0.5
+        if delta_binary.sum() == 0:
             continue
 
         results = compute_depth_completion_metrics(
             output=output_data,
             target=target_data,
-            mask=delta_binary_mask
+            mask=delta_binary
         )
 
         for key, value in results.items():
@@ -378,7 +379,86 @@ def calculate_2d_custom_metrics(data_3d_stem, data_2d_folder=None, apply_abs: bo
         return output_dict
 
 
-def calculate_3d_metrics(data_3d_stem, compare_crops_mode: bool = False):
+def chamfer_distance(A, B):
+    nbrs_A = NearestNeighbors(n_neighbors=1).fit(B)
+    dists_A_to_B, _ = nbrs_A.kneighbors(A)
+    nbrs_B = NearestNeighbors(n_neighbors=1).fit(A)
+    dists_B_to_A, _ = nbrs_B.kneighbors(B)
+    return np.mean(dists_A_to_B**2) + np.mean(dists_B_to_A**2)
+
+
+def hausdorff_distance(A, B):
+    nbrs_A = NearestNeighbors(n_neighbors=1).fit(B)
+    dists_A_to_B, _ = nbrs_A.kneighbors(A)
+    nbrs_B = NearestNeighbors(n_neighbors=1).fit(A)
+    dists_B_to_A, _ = nbrs_B.kneighbors(B)
+    return max(np.max(dists_A_to_B), np.max(dists_B_to_A))
+
+
+def downsample_pointcloud(pc, n_points=2048):
+    indices = np.random.choice(len(pc), n_points, replace=False)
+    return pc[indices]
+
+
+def compute_3d_completion_metrics(output, target, mask):
+    npoints = 2048
+
+    ################
+    # Full Metrics #
+    ################
+
+    output_points = np.argwhere(output > 0)
+    target_points = np.argwhere(target > 0)
+
+    # Downsample both to equal size for fair comparison
+    min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
+    sampled_output = downsample_pointcloud(output_points, min_size)
+    sampled_target_1 = downsample_pointcloud(target_points, min_size)
+    sampled_target_2 = downsample_pointcloud(target_points, min_size)
+
+    cd_numerator = chamfer_distance(sampled_output, sampled_target_1)
+    cd_denominator = chamfer_distance(sampled_target_1, sampled_target_2)
+    cdf = cd_numerator / (cd_denominator + 1e-6)
+
+    hd_numerator = hausdorff_distance(sampled_output, sampled_target_1)
+    hd_denominator = hausdorff_distance(sampled_target_1, sampled_target_2)
+    hdf = hd_numerator / (hd_denominator + 1e-6)
+
+    ##################
+    # Masked Metrics #
+    ##################
+
+    # Apply mask
+    masked_output = output * mask
+    masked_target = target * mask
+
+    output_points = np.argwhere(masked_output > 0)
+    target_points = np.argwhere(masked_target > 0)
+
+    # Downsample both to equal size for fair comparison
+    min_size = min(len(output_points), len(target_points), npoints)  # or choose your own cap
+    sampled_output = downsample_pointcloud(output_points, min_size)
+    sampled_target_1 = downsample_pointcloud(target_points, min_size)
+    sampled_target_2 = downsample_pointcloud(target_points, min_size)
+
+    cd_numerator = chamfer_distance(sampled_output, sampled_target_1)
+    cd_denominator = chamfer_distance(sampled_target_1, sampled_target_2)
+    cdf_masked = cd_numerator / (cd_denominator + 1e-6)
+
+    hd_numerator = hausdorff_distance(sampled_output, sampled_target_1)
+    hd_denominator = hausdorff_distance(sampled_target_1, sampled_target_2)
+    hdf_masked = hd_numerator / (hd_denominator + 1e-6)
+
+    results = {
+        "Full CDF": cdf,
+        "Full HDF": hdf,
+        "Masked CDF": cdf_masked,
+        "Masked HDF": hdf_masked
+    }
+    return results
+
+
+def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folder=None, compare_crops_mode: bool = False, apply_abs: bool = True):
     #################
     # CROPS COMPARE #
     #################
@@ -392,6 +472,25 @@ def calculate_3d_metrics(data_3d_stem, compare_crops_mode: bool = False):
         # Output
         output_folder = os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_3d")
         output_filepaths = list(pathlib.Path(output_folder).glob(f"{data_3d_stem}_*_output.*"))
+
+        # Input
+        if data_3d_folder is None:
+            # input_folder = PREDS_3D
+            input_folder = PREDS_FIXED_3D
+            # input_folder = EVALS_3D
+        else:
+            input_folder = data_3d_folder
+
+        input_filepaths = []
+        for output_filepath in output_filepaths:
+            output_filepath_extension = get_data_file_extension(data_filepath=output_filepath)
+            output_filepath_stem = get_data_file_stem(data_filepath=output_filepath, relative_to=output_folder)
+            if output_folder == os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_2d"):
+                output_filepath_stem = str(output_filepath_stem).rsplit('_output', maxsplit=1)[0]
+            output_filename = f"{output_filepath_stem}{output_filepath_extension}"
+
+            input_filepath = os.path.join(input_folder, output_filename)
+            input_filepaths.append(input_filepath)
 
         # Ground Truth
         target_folder = LABELS_3D
@@ -423,6 +522,15 @@ def calculate_3d_metrics(data_3d_stem, compare_crops_mode: bool = False):
         output_folder = MERGE_PIPELINE_RESULTS_PATH
         output_filepaths = list(pathlib.Path(output_folder).glob(f"{data_3d_stem}*.*"))
 
+        # Input
+        if source_data_3d_folder is None:
+            # input_folder = PREDS
+            input_folder = PREDS_FIXED
+            # input_folder = EVALS
+        else:
+            input_folder = source_data_3d_folder
+        input_filepaths = list(pathlib.Path(input_folder).glob(f"{data_3d_stem}*.*"))
+
         # Ground Truth
         target_folder = LABELS
         target_filepaths = list(pathlib.Path(target_folder).glob(f"{data_3d_stem}*.*"))
@@ -430,7 +538,18 @@ def calculate_3d_metrics(data_3d_stem, compare_crops_mode: bool = False):
         # Patch for Parse2022 (Medpseg)
         # target_filepaths = list(pathlib.Path(target_folder).glob(f"{data_3d_stem.replace('_vessel', '')}*.*"))
 
-        # TODO: FOR SAFETY
+        ####################
+        # TODO: FOR SAFETY #
+        ####################
+        # input_filepaths = []
+        # for input_filepath in input_filepaths:
+        #     input_filepath_extension = get_data_file_extension(data_filepath=input_filepath)
+        #     input_filepath_stem = get_data_file_stem(data_filepath=input_filepath, relative_to=input_folder)
+        #     input_filename = f"{input_filepath_stem}{input_filepath_extension}"
+        
+        #     target_filepath = os.path.join(target_folder, input_filename)
+        #     target_filepaths.append(target_filepath)
+
         # target_filepaths = []
         # for output_filepath in output_filepaths:
         #     output_filepath_extension = get_data_file_extension(data_filepath=output_filepath)
@@ -440,46 +559,88 @@ def calculate_3d_metrics(data_3d_stem, compare_crops_mode: bool = False):
         #     target_filepath = os.path.join(target_folder, output_filename)
         #     target_filepaths.append(target_filepath)
 
-    #########################
-    # Calculate Dice Scores #
-    #########################
+    #####################
+    # Calculate Metrics #
+    #####################
 
+    # input_filepaths = sorted(input_filepaths)
     # output_filepaths = sorted(output_filepaths)
     # target_filepaths = sorted(target_filepaths)
 
     filepaths_count = len(output_filepaths)
-    scores_dict = dict()
+    dice_scores_dict = {}
+    results_list = {}
     for idx in tqdm(range(filepaths_count)):
-        output_filepath = output_filepaths[idx]
-        target_filepath = target_filepaths[idx]
+        input_filepath_idx = input_filepaths[idx]
+        output_filepath_idx = output_filepaths[idx]
+        target_filepath_idx = target_filepaths[idx]
 
-        output_3d_numpy = convert_data_file_to_numpy(data_filepath=output_filepath, apply_data_threshold=True)
-        target_3d_numpy = convert_data_file_to_numpy(data_filepath=target_filepath, apply_data_threshold=True)
+        #############
+        # Load Data #
+        #############
+        input_data = convert_data_file_to_numpy(data_filepath=input_filepath_idx, apply_data_threshold=True)
+        output_data = convert_data_file_to_numpy(data_filepath=output_filepath_idx, apply_data_threshold=True)
+        target_data = convert_data_file_to_numpy(data_filepath=target_filepath_idx, apply_data_threshold=True)
 
-        dice_score = 2 * np.sum(output_3d_numpy * target_3d_numpy) / (np.sum(output_3d_numpy) + np.sum(target_3d_numpy))
-
+        # Full 3D Metrics #
+        dice_score = 2 * np.sum(output_data * target_data) / (np.sum(output_data) + np.sum(target_data))
         idx_format = get_data_file_stem(data_filepath=target_filepath)
-        scores_dict[idx_format] = dice_score
+        dice_scores_dict[idx_format] = dice_score
 
+        # Masked 3D Metrics #
+        if apply_abs:
+            # delta_binary = (abs(target_data_3d - input_data_3d) > 0.5).astype(np.int16)
+            delta_binary = np.logical_xor(target_data, input_data).astype(np.int16)
+        else:
+            delta_binary = ((target_data - input_data) > 0.5).astype(np.int16)
+        
+        
+        if delta_binary.sum() != 0:
+            results = compute_3d_completion_metrics(
+                output=output_data,
+                target=target_data,
+                mask=delta_binary
+            )
+            results["Dice Score"] = dice_score
+        else:
+            # If no delta binary mask, just return the dice score
+            results = {
+                "Dice Score": dice_score
+            }
+
+        for key, value in results.items():
+            if key in results_list:
+                results_list[key].append(value)
+            else:
+                results_list[key] = [value]
+
+    # Export Dice Scores to CSV
     save_filepath = os.path.join(PREDICT_PIPELINE_DICE_CSV_FILES_PATH, f"{data_3d_stem}_dice_scores.csv")
     os.makedirs(name=os.path.dirname(save_filepath), exist_ok=True)
-    pd.DataFrame(scores_dict.items()).to_csv(save_filepath)
-    scores_list = list(scores_dict.values())
-    avg_dice =  sum(scores_list) / len(scores_list)
+    pd.DataFrame(dice_scores_dict.items()).to_csv(save_filepath)
+    scores_list = list(dice_scores_dict.values())
+    avg_dice =  sum(scores_list) / len(scores_list)    
     print(
-        "Stats:\n"
+        f"Dice Score Stats:\n"
         f"Average Dice Score: {avg_dice}\n"
         f"Max Dice Score: {max(scores_list)}\n"
         f"Min Dice Score: {min(scores_list)}\n"
     )
 
-    output_dict = {
-        "Dice Score": avg_dice,
-    }
+    # Calculate average results
+    output_dict = {}
+    for key in results_list.keys():
+        output_dict[key] = mean(results_list[key]) if results_list[key] else 0
+
+    # Print results
+    print_str = "Stats:\n"
+    for key, value in output_dict.items():
+        print_str += f"AVG {key}: {value}\n"
+    print(print_str)
     return output_dict
 
 
-def calculate_3d_custom_metrics(data_3d_stem, components_mode="global", source_data_3d_folder=None, apply_abs: bool = True):
+def calculate_3d_custom_metrics(data_3d_stem, source_data_3d_folder=None, components_mode="global", apply_abs: bool = True):
     """
     Requires data_3d_stem result in MERGE_PIPELINE_RESULTS_PATH
     Works only for SINGLE_COMPONENT mode
@@ -490,7 +651,7 @@ def calculate_3d_custom_metrics(data_3d_stem, components_mode="global", source_d
     :return:
     """
 
-    # Baseline
+    # Input
     if source_data_3d_folder is None:
         # input_folder = PREDS
         input_folder = PREDS_FIXED
@@ -747,7 +908,13 @@ def full_folder_predict(data_type: DataType):
         outputs = {}
         for idx, data_3d_stem in enumerate(data_3d_stem_list):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Calculating Dice Scores...")
-            output = calculate_3d_metrics(data_3d_stem=data_3d_stem, compare_crops_mode=compare_crops_mode)
+            output = calculate_3d_metrics(
+                data_3d_stem=data_3d_stem,
+                data_3d_folder=data_3d_folder,
+                source_data_3d_folder=source_data_3d_folder,
+                compare_crops_mode=compare_crops_mode,
+                apply_abs=apply_abs
+            )
 
             for key, value in output.items():
                 if key in outputs:
@@ -802,8 +969,8 @@ def full_folder_predict(data_type: DataType):
             print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Calculating Components Scores...")
             calculate_3d_custom_metrics(
                 data_3d_stem=data_3d_stem,
-                components_mode=components_mode,
                 source_data_3d_folder=source_data_3d_folder,
+                components_mode=components_mode,
                 apply_abs=apply_abs
             )
 
