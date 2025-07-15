@@ -804,9 +804,7 @@ def full_folder_predict(data_type: DataType):
                 data_type=data_type,
                 log_data=log_data,
                 data_3d_folder=data_3d_folder,
-                data_2d_folder=data_2d_folder,
-                run_3d_flow=False,
-                export_3d=False
+                data_2d_folder=data_2d_folder
             )
 
         args.run_3d_flow = prev_run_3d_flow
