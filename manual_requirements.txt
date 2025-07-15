@@ -42,6 +42,17 @@ pip install h5py
 pip install einops
 
 
+# Optional for using gan3d in model_3d #
+
+pip install scikit-learn
+
+## To enable Keras GAN3D ##
+
+pip install tensorflow==2.19.0
+pip install keras==3.10.0
+pip install scikit-learn-1.7.0
+
+
 ####################
 # Tested versions: #
 ####################
