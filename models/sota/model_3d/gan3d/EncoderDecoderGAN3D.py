@@ -15,7 +15,8 @@ from keras.models import load_model
 from keras.optimizers import Adam
 from sklearn.metrics import hamming_loss
 
-# pip install keras==2.15.0
+# pip install tensorflow==2.19.0
+# pip install keras==3.10.0
 # pip install scikit-learn-1.7.0
 
 IMAGE_DIR = './32_cube/images'
@@ -205,11 +206,12 @@ class EncoderDecoderGAN:
         masked_vols, missing_parts, (y1, y2, x1, x2, z1, z2) = self.mask_randomly(vols)
         gen_missing = self.generator.predict(masked_vols)
         gen_missing = np.where(gen_missing > 0.5, 1, 0)
-        fig = plt.figure(figsize=plt.figaspect(0.5), dpi=300)
+        # fig = plt.figure(figsize=plt.figaspect(0.5), dpi=300)
 
         vols = 0.5 * vols + 0.5
 
         for i in range(2):
+            fig = plt.figure(figsize=plt.figaspect(0.5), dpi=300)
             masked_vol = masked_vols[i]
             masked_vol = masked_vol[:, :, :, 0].astype(np.bool_)
             colors1 = np.empty(masked_vol.shape, dtype=object)
