@@ -200,27 +200,6 @@ class EncoderDecoderGAN:
             g_loss.backward()
             generator_optimizer.step()
 
-            # # Train Discriminator
-            # idx = np.random.randint(0, X_train.shape[0], batch_size)
-            # vols = X_train[idx]
-            # masked_vols, missing_parts, _ = self.mask_randomly(vols)
-            #
-            # # Generate a batch
-            # # gen_missing = self.generator.predict(masked_vols)
-            # masked_vols_tensor = torch.tensor(masked_vols.transpose(0, 4, 1, 2, 3), dtype=torch.float32).to(device)
-            # gen_missing = self.generator(masked_vols_tensor)
-            # # print(gen_missing.shape)
-
-            # d_loss_real = self.discriminator.train_on_batch(missing_parts, valid)
-            # d_loss_fake = self.discriminator.train_on_batch(gen_missing, fake)
-            # d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
-            #
-            # # Train Generator
-            # g_loss = self.combined.train_on_batch(masked_vols, [missing_parts, valid])
-            #
-            # print("%d [D loss: %f, acc: %.2f%%] [G loss: %f, mse: %f]" % (
-            #     epoch, d_loss[0], 100 * d_loss[1], g_loss[0], g_loss[1]))
-
             print(
                 f"{epoch} "
                 f"[D loss: {d_loss.item():.6f}] "
