@@ -20,7 +20,7 @@ class Network3D(nn.Module):
         self.dis = Discriminator3D()
 
     def forward(self, x):
-        output = self.model(x)
+        output, _ = self.ae_u(x)
         return output
 
 
