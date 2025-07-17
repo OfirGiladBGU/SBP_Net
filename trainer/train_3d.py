@@ -142,7 +142,7 @@ class Trainer(object):
                     loss = self.model.model_step(
                         x=input_data,
                         y=target_data,
-                        train=True
+                        train=False
                     )
                 else:
                     output_data = self.model(input_data)

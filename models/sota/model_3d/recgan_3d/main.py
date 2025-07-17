@@ -47,6 +47,9 @@ class Network3D(nn.Module):
         if train:
             self.ae_u_optimizer.zero_grad()
             self.dis_optimizer.zero_grad()
+            requires_grad = True
+        else:
+            requires_grad = False
 
         batch_size = x.size(0)
 
@@ -82,23 +85,27 @@ class Network3D(nn.Module):
         differences = y_pred - y
         interpolates = y + alpha * differences
 
-        interpolates.requires_grad_(True)
+        interpolates.requires_grad_(requires_grad)
         fake_interpolates = self.dis(x, interpolates)
-        gradients = torch.autograd.grad(
-            outputs=fake_interpolates, inputs=interpolates,
-            grad_outputs=torch.ones_like(fake_interpolates),
-            create_graph=True, retain_graph=True
-        )[0]
-        slopes = gradients.view(gradients.size(0), -1).norm(2, dim=1)
-        gradient_penalty = torch.mean((slopes - 1.0) ** 2)
-        gan_d_loss_gp = gan_d_loss_no_gp + 10 * gradient_penalty
+        if requires_grad:
+            gradients = torch.autograd.grad(
+                outputs=fake_interpolates, inputs=interpolates,
+                grad_outputs=torch.ones_like(fake_interpolates),
+                create_graph=True, retain_graph=True
+            )[0]
+            slopes = gradients.view(gradients.size(0), -1).norm(2, dim=1)
+            gradient_penalty = torch.mean((slopes - 1.0) ** 2)
+            gan_d_loss_gp = gan_d_loss_no_gp + 10 * gradient_penalty
+        else:
+            gradient_penalty = torch.tensor(0.0, device=self.device)
+            gan_d_loss_gp = gan_d_loss_no_gp
 
         # === Autoencoder + GAN loss ===
         gan_g_w = 5
         ae_w = 100 - gan_g_w
         ae_gan_g_loss = ae_w * ae_loss + gan_g_w * gan_g_loss
 
-        if train:
+        if requires_grad:
             ae_gan_g_loss.backward(retain_graph=True)
             gan_d_loss_gp.backward()
 
