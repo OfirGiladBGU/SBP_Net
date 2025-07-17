@@ -1094,7 +1094,7 @@ if __name__ == "__main__":
     args.model_3d = "unet3d"
     args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     args.run_2d_flow = False
-    args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
+    # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
     args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
 
     main()
