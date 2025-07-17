@@ -1,27 +1,10 @@
-import os
-import shutil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ---------------------
-# Part 1: Directory setup
-# ---------------------
-class Network:
-    def __init__(self):
-        self.train_mod_dir = './train_mod/'
-        self.train_sum_dir = './train_sum/'
-        self.test_res_dir = './test_res/'
-        self.test_sum_dir = './test_sum/'
-
-        for d in [self.train_mod_dir, self.train_sum_dir, self.test_res_dir, self.test_sum_dir]:
-            if os.path.exists(d):
-                shutil.rmtree(d)
-                print(f'{d}: deleted and then created!')
-            os.makedirs(d)
 
 # ---------------------
-# Part 2: Tools replacement
+# Part 1: Tools replacement
 # ---------------------
 class ConvBlock3D(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -41,8 +24,9 @@ class DeconvBlock3D(nn.Module):
     def forward(self, x):
         return self.deconv(x)
 
+
 # ---------------------
-# Part 3: Autoencoder U-Net
+# Part 2: Autoencoder U-Net
 # ---------------------
 class AutoencoderUNet3D(nn.Module):
     def __init__(self):
@@ -88,7 +72,7 @@ class AutoencoderUNet3D(nn.Module):
 
 
 # ---------------------
-# Part 4: Discriminator
+# Part 3: Discriminator
 # ---------------------
 class Discriminator3D(nn.Module):
     def __init__(self):
@@ -114,7 +98,7 @@ class Discriminator3D(nn.Module):
 
 
 # ---------------------
-# Part 5: Forward Example
+# Part 4: Forward Example
 # ---------------------
 if __name__ == '__main__':
     batch_size = 8

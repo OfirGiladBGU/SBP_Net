@@ -70,11 +70,18 @@ class Network3D(nn.Module):
         gan_g_loss = -fake_pair.mean()
         gan_d_loss_no_gp = fake_pair.mean() - real_pair.mean()
 
-        alpha = torch.rand(batch_size, self.resolution ** 3).to(self.device)
-        y_pred_flat = y_pred.view(batch_size, -1)
-        differences = y_pred_flat - y_flat
-        interpolates = y_flat + alpha * differences
-        interpolates = interpolates.view(batch_size, 1, self.resolution, self.resolution, self.resolution)
+        # Option1
+        # alpha = torch.rand(batch_size, self.resolution ** 3).to(self.device)
+        # y_pred_flat = y_pred.view(batch_size, -1)
+        # differences = y_pred_flat - y_flat
+        # interpolates = y_flat + alpha * differences
+        # interpolates = interpolates.view(batch_size, 1, self.resolution, self.resolution, self.resolution)
+
+        # Option2
+        alpha = torch.rand(batch_size, 1, 1, 1, 1).to(self.device)
+        differences = y_pred - y
+        interpolates = y + alpha * differences
+
         interpolates.requires_grad_(True)
         fake_interpolates = self.dis(x, interpolates)
         gradients = torch.autograd.grad(
@@ -93,12 +100,12 @@ class Network3D(nn.Module):
 
         if train:
             ae_gan_g_loss.backward(retain_graph=True)
-            self.ae_u_optimizer.step()
-
             gan_d_loss_gp.backward()
+
+            self.ae_u_optimizer.step()
             self.dis_optimizer.step()
 
-        total_loss = ae_gan_g_loss.item() + gan_d_loss_gp.item()
+        total_loss = ae_gan_g_loss + gan_d_loss_gp
         print(
             "> [3D RecGAN] ae loss: {}, gan g loss: {}, gan d loss no gp: {}, gand d loss gp: {}".format(
                 ae_loss.item(),
