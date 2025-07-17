@@ -65,7 +65,7 @@ CONFIG_FILENAME = "parse2022_SC_32.yaml"
 # TODO: Use for Ex_Sota:
 
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_128_50_unet3d.yaml"
-# CONFIG_FILENAME = "experiment_sota/parse2022_LC_64_50_mbd.yaml"
+# CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_mbd.yaml"
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_64_50_recgan_3d.yaml"
 
 
