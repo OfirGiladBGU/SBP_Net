@@ -54,9 +54,9 @@ if __name__ == "__main__":
 
     # 3D RecGAN config #
     args.model = 'recgan_3d'
-    args.batch_size = 1
+    args.batch_size = 8
     args.dataset = 'Trees3DV2D'
-    args.epochs = 50
+    args.epochs = 15
 
 
     # UNet3D config #
