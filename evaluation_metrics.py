@@ -1099,6 +1099,7 @@ if __name__ == "__main__":
 
 
     # SOTA MBD config #
+    # Make sure: run_full_predict = False and enable input merging
     # args.model_3d = ""  # Trained from MBD repo
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     # args.run_2d_flow = False
