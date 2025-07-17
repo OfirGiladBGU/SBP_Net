@@ -62,6 +62,31 @@ def get_data_file_stem(data_filepath, relative_to=None) -> str:
     return data_filepath_stem
 
 
+def pad_to_match_all_dims(from_ref, to_pad, pad_value=0):
+    """
+    Pad `to_pad` to match the shape of `from_ref` in all dimensions.
+    Pads only if `to_pad` is smaller along a dimension.
+    """
+    ref_shape = from_ref.shape
+    pad_shape = to_pad.shape
+
+    if len(ref_shape) != len(pad_shape):
+        raise ValueError("Arrays must have the same number of dimensions")
+
+    pad_width = []
+    for r, p in zip(ref_shape, pad_shape):
+        if p < r:
+            pad_width.append((0, r - p))
+        else:
+            pad_width.append((0, 0))  # no padding needed
+
+    padded = np.pad(to_pad, pad_width, mode='constant', constant_values=pad_value)
+
+    # Optionally truncate if `to_pad` is larger than reference
+    slices = tuple(slice(0, s) for s in ref_shape)
+    return padded[slices]
+
+
 def convert_data_file_to_numpy(data_filepath, apply_data_threshold: bool = False, **kwargs) -> np.ndarray:
     if not os.path.exists(data_filepath):
         raise ValueError(f"Invalid data path: {data_filepath}")

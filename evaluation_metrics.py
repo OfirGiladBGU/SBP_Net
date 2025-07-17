@@ -599,6 +599,12 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         output_data = convert_data_file_to_numpy(data_filepath=output_filepath_idx, apply_data_threshold=True)
         target_data = convert_data_file_to_numpy(data_filepath=target_filepath_idx, apply_data_threshold=True)
 
+        # (Optional) Fix data dimensions
+        # input_data = pad_to_match_all_dims(from_ref=target_data, to_pad=input_data)
+        # output_data = pad_to_match_all_dims(from_ref=target_data, to_pad=output_data)
+
+        # output_data = np.logical_or(output_data, input_data).astype(np.int16)  # Merge output and input data
+
         # Full 3D Metrics #
         dice_score = 2 * np.sum(output_data * target_data) / (np.sum(output_data) + np.sum(target_data))
         idx_format = get_data_file_stem(data_filepath=target_filepath)
