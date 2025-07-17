@@ -1086,15 +1086,29 @@ if __name__ == "__main__":
 
 
     # Paper config #
-    # args.model_2d = "ae_2d_to_2d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+    args.model_2d = "ae_2d_to_2d"
+    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
 
     # SOTA Unet3D config #
-    args.model_3d = "unet3d"
-    args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    args.run_2d_flow = False
+    # args.model_3d = "unet3d"
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
     # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
-    args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+
+
+    # SOTA MBD config #
+    # args.model_3d = ""  # Trained from MBD repo
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+
+
+    # SOTA 3D RecGAN config #
+    # args.model_3d = "recgan_3d"
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
 
     main()
