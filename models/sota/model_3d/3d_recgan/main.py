@@ -27,15 +27,20 @@ class Network3D(nn.Module):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    args.input_size = (1, 32, 64, 64)
+    args.input_size = (1, 64, 64, 64)
     model = Network3D(args)
-    model.eval()
+    model.ae_u.eval()
+    model.dis.eval()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    model.ae_u.to(device)
+    model.dis.to(device)
     input_data = torch.rand(size=[1, *args.input_size]).to(device)
-    output_data = model(input_data)
-    print(output_data.shape)
+    output_data1, output_data1_m = model.ae_u(input_data)
+    output_data2 = model.dis(input_data, output_data1)
+    print(output_data1.shape)
+    print(output_data1_m.shape)
+    print(output_data2.shape)
 
 # Loss:
 #   - (AutoencoderUNet3D) BCEWithLogitsLoss
