@@ -22,6 +22,7 @@ from models.model_3d.ae_3d_to_3d import Network3D as AE_3D_TO_3D
 
 # 3D models - SOTA
 from models.sota.model_3d.unet3d.main import Network3D as UNet3D
+from models.sota.model_3d.recgan_3d.main import Network3D as RecGAN_3D
 
 
 def init_model(args: argparse.Namespace):
@@ -47,6 +48,7 @@ def init_model(args: argparse.Namespace):
 
         # 3D sota models
         "unet3d": UNet3D,
+        "recgan_3d": RecGAN_3D,
     }
     if args.model in list(model_map.keys()):
         return model_map[args.model](args=args)

@@ -34,6 +34,9 @@ class Trainer(object):
 
         if self.model.model_name == "unet3d":
             self.optimizer = optim.Adam(self.model.parameters(), lr=0.0002, weight_decay=0.00001)
+        elif self.model.model_name == "recgan_3d":
+            self.optimizer = None  # Ignore the optimizer here, it will be initialized in the model
+            self.model.init_optimizers()
         else:
             self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
 
@@ -46,6 +49,9 @@ class Trainer(object):
         """
         if self.model.model_name == "unet3d":
             LOSS = loss_functions.weighted_bce_dice_loss(output=output_data, target=target_data)
+            return LOSS
+        elif self.model.model_name == "recgan_3d":
+            LOSS = None  # The loss function is handled in the model
             return LOSS
 
         ##########
@@ -82,17 +88,24 @@ class Trainer(object):
             input_data = input_data.to(self.device)
             target_data = target_data.to(self.device)
 
-            self.optimizer.zero_grad()
-            output_data = self.model(input_data)
-            loss = self.loss_function(
-                output_data=output_data,
-                target_data=target_data,
-                input_data=input_data
-            )
-            loss.backward()
+            if self.model.model_name == "recgan_3d":
+                loss = self.model.model_step(
+                    x=input_data,
+                    y=target_data,
+                    train=True
+                )
+            else:
+                self.optimizer.zero_grad()
+                output_data = self.model(input_data)
+                loss = self.loss_function(
+                    output_data=output_data,
+                    target_data=target_data,
+                    input_data=input_data
+                )
+                loss.backward()
+                self.optimizer.step()
 
             train_loss += loss.item()
-            self.optimizer.step()
             if batch_idx % self.args.log_interval == 0:
                 print(
                     '[Train] Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}'.format(
@@ -125,12 +138,20 @@ class Trainer(object):
                 input_data = input_data.to(self.device)
                 target_data = target_data.to(self.device)
 
-                output_data = self.model(input_data)
-                test_loss += self.loss_function(
-                    output_data=output_data,
-                    target_data=target_data,
-                    input_data=input_data
-                ).item()
+                if self.model.model_name == "recgan_3d":
+                    loss = self.model.model_step(
+                        x=input_data,
+                        y=target_data,
+                        train=True
+                    )
+                else:
+                    output_data = self.model(input_data)
+                    loss = self.loss_function(
+                        output_data=output_data,
+                        target_data=target_data,
+                        input_data=input_data
+                    )
+                test_loss += loss.item()
 
         test_avg_loss = test_loss / len(self.test_loader.dataset)
         print(

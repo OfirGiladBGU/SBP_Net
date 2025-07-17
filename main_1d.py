@@ -42,4 +42,8 @@ if __name__ == "__main__":
     args.dataset = 'Trees1DV1'
     args.epochs = 10
 
+
+    # Paper config #
+    # NOT USED
+
     run_main(args=args, model_type=ModelType.Model_1D)

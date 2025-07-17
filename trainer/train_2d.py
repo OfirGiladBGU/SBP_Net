@@ -182,9 +182,9 @@ class Trainer(object):
                 input_data=input_data
             )
             loss.backward()
-
-            train_loss += loss.item()
             self.optimizer.step()
+            train_loss += loss.item()
+
             if batch_idx % self.args.log_interval == 0:
                 print(
                     '[Train] Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {}'.format(
@@ -232,11 +232,12 @@ class Trainer(object):
                 target_data = target_data.to(self.device)
 
                 output_data = self.model(input_data)
-                test_loss += self.loss_function(
+                loss = self.loss_function(
                     output_data=output_data,
                     target_data=target_data,
                     input_data=input_data
-                ).item()
+                )
+                test_loss += loss.item()
 
         test_avg_loss = test_loss / len(self.test_loader.dataset)
         print(

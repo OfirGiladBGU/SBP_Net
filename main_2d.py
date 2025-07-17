@@ -37,20 +37,26 @@ if __name__ == "__main__":
 
     # Custom Edit:
 
-    args.model = 'ae_2d_to_2d'
+    # args.model = 'ae_2d_to_2d'
     # args.dataset = 'MNIST'
     # args.dataset = 'CIFAR10'
     # args.dataset = 'Trees2DV1S'
-    args.dataset = 'Trees2DV1'
-    args.epochs = 20
+    # args.dataset = 'Trees2DV1'
+    # args.epochs = 20
 
     # args.model = 'ae_6_2d_to_6_2d'
     # args.dataset = 'Trees2DV2'
     # args.epochs = 20
 
+
+    # Paper config #
+    args.model = 'ae_2d_to_2d'
+    args.dataset = 'Trees2DV1'
+    args.epochs = 20
+
     run_main(args=args, model_type=ModelType.Model_2D)
 
-    # Notes:
+    # Notes to self:
 
     # TODO: check option that the original input is kept and only the holes are predicted and merged - V
     # TODO: filter noise

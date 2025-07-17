@@ -1,4 +1,3 @@
-# Parallel PyTorch translation of TensorFlow code from main_3D-RecGAN.py
 import os
 import shutil
 import torch
@@ -81,7 +80,7 @@ class AutoencoderUNet3D(nn.Module):
             inp = torch.cat([out, skips[i]], dim=1)
             out = dec_layer(inp)
             if i < len(self.dec) - 1:
-                out = F.relu(out)
+                out = F.relu(out, inplace=False)
 
         vox_sig = torch.sigmoid(out)
         vox_sig_modified = torch.clamp(vox_sig, min=0.01)

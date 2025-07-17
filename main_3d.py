@@ -47,12 +47,24 @@ if __name__ == "__main__":
     # args.dataset = 'Trees3DV2F'
     # args.epochs = 10
 
-    args.model = 'unet3d'
-    # args.batch_size = 1
-    # args.dataset = 'Trees3DV3'
-    args.batch_size = 2
+
+    # Paper config #
+    # NOT USED
+
+
+    # 3D RecGAN config #
+    args.model = 'recgan_3d'
+    args.batch_size = 1
     args.dataset = 'Trees3DV2D'
     args.epochs = 50
-    args.predict = True  # Skip predict for visualization
+
+
+    # UNet3D config #
+    # args.model = 'unet3d'
+    # # args.batch_size = 1  # Full Input (Requires strong GPU)
+    # # args.dataset = 'Trees3DV3'  # Full Input (Requires strong GPU)
+    # args.batch_size = 2
+    # args.dataset = 'Trees3DV2D'
+    # args.epochs = 50
 
     run_main(args=args, model_type=ModelType.Model_3D)
