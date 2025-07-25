@@ -211,12 +211,7 @@ def full_folder_predict(data_type: DataType):
             data_type=data_type,
             log_data=log_data,
             data_3d_folder=data_3d_folder,
-            data_2d_folder=data_2d_folder,
-            run_2d_flow=args.run_2d_flow,
-            export_2d=args.export_2d,
-            run_3d_flow=args.run_3d_flow,
-            export_3d=args.export_3d,
-            parallel_predict=args.parallel_predict
+            data_2d_folder=data_2d_folder
         )
 
         print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Merging...")

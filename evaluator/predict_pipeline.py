@@ -274,7 +274,7 @@ def single_predict(args: argparse.Namespace,
                    log_data=None, enable_debug=True,
                    run_2d_flow=True, run_3d_flow=True,
                    export_2d=True, export_3d=True):
-    if not os.path.exists(data_3d_filepath):
+    if args.mode == "offline" and not os.path.exists(data_3d_filepath):
         raise ValueError(f"File: {data_3d_filepath} doesn't exist!")
 
     # CONFIGS

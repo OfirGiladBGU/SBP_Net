@@ -190,7 +190,8 @@ def prepare_2d_projections_and_3d_cubes(input_filepath, input_folder):
             eval_projections["cube"] = eval_cube
             projections_data[output_3d_format] = eval_projections
 
-    log_data = pd.DataFrame(data=log_data).T
+    log_data = pd.DataFrame(data=log_data).T.reset_index()
+    log_data.rename(columns={'index': "col_0"}, inplace=True)
     return log_data, projections_data
 
 
