@@ -1,6 +1,5 @@
 import os
 import pathlib
-from tqdm import tqdm
 import numpy as np
 from statistics import mean
 import sys
@@ -12,6 +11,10 @@ from datasets.dataset_utils import convert_data_file_to_numpy, get_data_file_ste
 from datasets_visualize.dataset_visulalization import interactive_plot_2d, interactive_plot_3d
 
 DATASET_PATH = DATA_PATH.joinpath("PipeForge3DPCD")
+
+"""
+This script calculates metrics of the holes in the 3D data files in a specified dataset.
+"""
 
 
 def calculate_metrics_3d(data_3d_stem, input_folder, target_folder, apply_abs=True):

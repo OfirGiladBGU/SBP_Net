@@ -79,6 +79,12 @@ There are 3 types of model supported in this repo:
 - `2D Model` - Detect and fills holes on the given 2D orthographic depth projections.
 - `3D Model` - Detect and fill occluded holes that couldn't be detected by the `2D Model`.
 
+Notice that the results of the trained model predictions will be saved in following structure in `DATASET_OUTPUT_FOLDER`:
+```
+./data_results/parse2022
+└── models
+    └── <model_name>  // (2D images of the results that are also uploaded to the wandb)
+```
 
 ### How to train the models:
 
@@ -101,7 +107,18 @@ The prediction pipeline is designed to process 3D data and generate predictions 
 It consists of two main scripts: 
 
 - [offline_pipeline.py](offline_pipeline.py) - On training/evaluation local crops data.
-- [WIP] [online_pipeline.py](online_pipeline.py) - Directly on new full 3D data.
+- [online_pipeline.py](online_pipeline.py) - Directly on new full 3D data.
+
+Notice that the results of the prediction pipeline will be saved in following structure in `DATASET_OUTPUT_FOLDER`:
+```
+./data_results/parse2022
+├── merge_pipeline       // (Full 3D model by merging the prediction pipeline results)
+└── predict_pipeline  
+    ├── output_2d        // (2D model predictions)
+    ├── output_2d_debug  // (2D model debug results - input 2D compared to output 2D)
+    ├── output_3d        // (3D model predictions - The final output)
+    └── output_3d_debug  // (3D model debug results - input 3D)
+```
 
 ---
 
@@ -192,7 +209,7 @@ voxel_size = 1.0
 
 ---
 
-# Chosen Approach:
+## Chosen Approach:
 
 Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
@@ -208,7 +225,7 @@ Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
 ---
 
-# Available Approaches:
+## Available Approaches:
 
 Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
@@ -268,6 +285,17 @@ Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
 ---
 
+## Visualization:
+
+In the [datasets_visualize](datasets_visualize) folder there are some useful script to visualize the data:
+- [file_convert.py](datasets_visualize/file_convert.py) - File to convert the data from one format to different format
+  (For example: from `.pcd` to `.obj` using voxelization).
+- [file_visualize.py](datasets_visualize/file_visualize.py) - Visualization using `open3d` for PCD and Mesh files.
+- [files_filters_2d.py](datasets_visualize/files_filters_2d.py) - Testing different filters on the 2D projections.
+- [pts_to_pcd.py](datasets_visualize/pts_to_pcd.py) - Convert `.pts` files to `.pcd` files.
+
+---
+
 # Sources and Pro Tips:
 
 ## AE (As base model skeleton):
@@ -304,8 +332,6 @@ python -m pip install -U --force pip
 
 Commit with big change:
 11.04.2025 - configured new noise filters based on the Continuity fix 3D filters
-
-
 
 ---
 
