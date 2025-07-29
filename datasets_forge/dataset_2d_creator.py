@@ -812,9 +812,7 @@ def create_2d_projections_and_3d_cubes_for_training():
 
                         # Calculate the connected components for the advanced fixed preds
                         labeled_delta = connected_components_2d(data_2d=pred_advanced_fixed_image)[0]
-                        pred_advanced_fixed_projections[f"{image_view}_components"] = color.label2rgb(
-                            label=labeled_delta
-                        ) * 255
+                        pred_advanced_fixed_projections[f"{image_view}_components"] = labeled_delta
 
                     elif TASK_TYPE == TaskType.LOCAL_CONNECTIVITY:
                         if APPLY_CONTINUITY_FIX_2D:
@@ -882,9 +880,12 @@ def create_2d_projections_and_3d_cubes_for_training():
                     if TASK_TYPE == TaskType.SINGLE_COMPONENT:
                         for key, value in folder_2d_components_map.items():
                             data_2d = value[f"{image_view}_components"]
+                            data_2d_color = color.label2rgb(
+                                label=data_2d
+                            ) * 255
                             save_filename = os.path.join(output_folders[key], output_2d_format)
                             convert_numpy_to_data_file(
-                                numpy_data=data_2d,
+                                numpy_data=data_2d_color,
                                 source_data_filepath="dumpy.png",
                                 save_filename=save_filename
                             )
