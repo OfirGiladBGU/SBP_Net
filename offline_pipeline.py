@@ -286,8 +286,8 @@ if __name__ == "__main__":
     # args.model_2d = "ae_6_2d_to_6_2d"
     # args.input_size_model_2d = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
-    # args.model_2d = "ae_2d_to_2d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+    args.model_2d = "ae_2d_to_2d"
+    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
     # args.model_3d = "ae_3d_to_3d"
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
@@ -299,9 +299,9 @@ if __name__ == "__main__":
 
 
     # SOTA Unet3D config #
-    args.model_3d = "unet3d"
-    args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    args.run_2d_flow = False
-    args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
+    # args.model_3d = "unet3d"
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
 
     main()

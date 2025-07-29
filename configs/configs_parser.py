@@ -4,10 +4,11 @@ from enum import Enum
 
 
 # TODO: Setup Configurations File
-CONFIG_FILENAME = "parse2022_SC_32.yaml"
+# CONFIG_FILENAME = "parse2022_SC_32.yaml"
+CONFIG_FILENAME = "parse2022_LC_32.yaml"
 
 
-# TODO: Use for examples:
+# TODO: Use for paper examples:
 
 # CONFIG_FILENAME = "examples/parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "examples/parse2022_LC_48.yaml"
