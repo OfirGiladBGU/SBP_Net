@@ -328,6 +328,16 @@ python -m pip install -U --force pip
 
 ---
 
+## SOTA models for comparison:
+
+- [Unet3D](https://github.com/wolny/pytorch-3dunet) - Available in [main.py](models/sota/model_3d/unet3d/main.py)
+- [3D-RecGAN](https://github.com/Yang7879/3D-RecGAN) - Available in [main.py](models/sota/model_3d/recgan_3d/main.py)
+- [MBD V1](https://github.com/texsmv/point_cloud_reconstruction) | 
+  [MBD V2](https://github.com/ivansipiran/Data-driven-cultural-heritage) - 
+  Available in [Adapted MBD V2](https://github.com/OfirGiladBGU/Data-driven-cultural-heritage).
+
+---
+
 # Log to myself:
 
 Commit with big change:
