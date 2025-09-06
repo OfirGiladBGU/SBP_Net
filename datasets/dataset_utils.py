@@ -296,7 +296,48 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #     cubes.append(cube)
     # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
 
-    # V2
+    # V2 - Naive Union of Cubes
+
+    # mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
+    # voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
+
+    # # Find minimum bounds
+    # if source_data_filepath != "dummy.obj":
+    #     source_mesh = trimesh.load(source_data_filepath)
+    #     min_bounds = source_mesh.bounds[0]  # Extract minimum bounds from source mesh
+    # else:
+    #     min_bounds = np.array([0, 0, 0])
+
+    # occupied_indices = np.argwhere(numpy_data > 0.0)  # Find occupied voxels (indices where numpy_data == 1)
+    # centers = (occupied_indices + min_bounds)  # Apply shift (align with the original mesh space) and scale correctly
+
+    # # Create cube meshes for each occupied voxel
+    # cubes = []
+    # for center in centers:
+    #     # Create a cube for each voxel
+    #     cube = trimesh.creation.box(
+    #         extents=[1, 1, 1],  # Voxel size is 1x1x1
+    #         transform=trimesh.transformations.translation_matrix(center)
+    #     )
+    #     cubes.append(cube)
+    # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
+    # if voxel_size != 1.0:
+    #     mesh.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
+    # if mesh_scale != 1.0:
+    #     mesh.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
+
+
+    # if save_filename is not None and len(save_filename) > 0:
+    #     save_filename = str(save_filename)
+    #     os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
+    #     if not save_filename.endswith("obj"):
+    #         save_filename = f"{save_filename}.obj"
+    #     mesh.export(file_obj=save_filename)  # Save to OBJ
+
+    # new_obj_data = mesh
+    # return new_obj_data
+
+    # V3 - Cuberille / Exposed-Faces Meshing
 
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
@@ -306,36 +347,105 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
         source_mesh = trimesh.load(source_data_filepath)
         min_bounds = source_mesh.bounds[0]  # Extract minimum bounds from source mesh
     else:
-        min_bounds = np.array([0, 0, 0])
+        min_bounds = np.zeros(3, dtype=float)   
 
-    occupied_indices = np.argwhere(numpy_data > 0.0)  # Find occupied voxels (indices where numpy_data == 1)
-    centers = (occupied_indices + min_bounds)  # Apply shift (align with the original mesh space) and scale correctly
+    # Pad so boundary voxels have 'air' neighbors outside the grid
+    pad = np.pad(numpy_data, ((1,1),(1,1),(1,1)), mode='constant', constant_values=False)
 
-    # Create cube meshes for each occupied voxel
-    cubes = []
-    for center in centers:
-        # Create a cube for each voxel
-        cube = trimesh.creation.box(
-            extents=[1, 1, 1],  # Voxel size is 1x1x1
-            transform=trimesh.transformations.translation_matrix(center)
-        )
-        cubes.append(cube)
-    mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
+    # Indices of occupied voxels in XYZ order
+    xx, yy, zz = np.nonzero(numpy_data)
+
+    vertices = []
+    faces = []
+    vmap = {}  # (x,y,z) -> vertex index
+
+    def vid(p):
+        """Return vertex index for integer corner p=(x,y,z), creating if needed."""
+        idx = vmap.get(p)
+        if idx is None:
+            idx = len(vertices)
+            vmap[p] = idx
+            # store as float; translation + scaling applied later to the mesh
+            vertices.append(np.array(p, dtype=float))
+        return idx
+
+    # Emit faces only where neighbor is empty; orientations are CCW as seen from outside
+    for x, y, z in zip(xx, yy, zz):
+        X, Y, Z = x + 1, y + 1, z + 1  # padded indices
+
+        # +X face (neighbor at +X is empty)
+        if not pad[X+1, Y, Z]:
+            p0 = (x+1, y  , z  ); p1 = (x+1, y+1, z  )
+            p2 = (x+1, y+1, z+1); p3 = (x+1, y  , z+1)
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+        # -X face
+        if not pad[X-1, Y, Z]:
+            p0 = (x, y  , z  ); p1 = (x, y  , z+1)
+            p2 = (x, y+1, z+1); p3 = (x, y+1, z  )
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+        # +Y face
+        if not pad[X, Y+1, Z]:
+            p0 = (x  , y+1, z  ); p1 = (x+1, y+1, z  )
+            p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+        # -Y face
+        if not pad[X, Y-1, Z]:
+            p0 = (x  , y, z  ); p1 = (x  , y, z+1)
+            p2 = (x+1, y, z+1); p3 = (x+1, y, z  )
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+        # +Z face
+        if not pad[X, Y, Z+1]:
+            p0 = (x  , y  , z+1); p1 = (x+1, y  , z+1)
+            p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+        # -Z face
+        if not pad[X, Y, Z-1]:
+            p0 = (x  , y  , z); p1 = (x  , y+1, z)
+            p2 = (x+1, y+1, z); p3 = (x+1, y  , z)
+            faces.append([vid(p0), vid(p1), vid(p2)])
+            faces.append([vid(p0), vid(p2), vid(p3)])
+
+    mesh = trimesh.Trimesh(
+        vertices=np.asarray(vertices),
+        faces=np.asarray(faces, dtype=np.int64),
+        process=False
+    )
+
+    # Apply your original transform order: translate, then inverse scales
+    if np.any(min_bounds != 0.0):
+        mesh.apply_translation(min_bounds)
     if voxel_size != 1.0:
-        mesh.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
+        mesh.apply_scale(1.0 / voxel_size)
     if mesh_scale != 1.0:
-        mesh.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
+        mesh.apply_scale(1.0 / mesh_scale)
 
+    # Minimal, non-iterative cleanup (keeps it slicer-friendly)
+    mesh.remove_duplicate_faces()
+    mesh.remove_degenerate_faces()
+    mesh.remove_unreferenced_vertices()
+    mesh.merge_vertices()
+    trimesh.repair.fix_normals(mesh)
 
-    if save_filename is not None and len(save_filename) > 0:
+    if save_filename:
         save_filename = str(save_filename)
-        os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
-        if not save_filename.endswith("obj"):
-            save_filename = f"{save_filename}.obj"
-        mesh.export(file_obj=save_filename)  # Save to OBJ
+        out_dir = os.path.dirname(save_filename)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        if not save_filename.lower().endswith(".obj"):
+            save_filename += ".obj"
+        mesh.export(save_filename)
 
-    new_obj_data = mesh
-    return new_obj_data
+    return mesh
 
 
 #################################
