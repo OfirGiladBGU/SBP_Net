@@ -268,9 +268,9 @@ def _convert_obj_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell)
 
-    mesh = trimesh.load(data_filepath)
+    mesh = trimesh.load(data_filepath, force='mesh')
     if mesh_scale != 1.0:
-        mesh = mesh.apply_scale(mesh_scale)
+        mesh.apply_scale(mesh_scale)
     voxelized = mesh.voxelized(pitch=voxel_size)  # Pitch = voxel size
 
     numpy_data = voxelized.matrix.astype(np.uint8)
