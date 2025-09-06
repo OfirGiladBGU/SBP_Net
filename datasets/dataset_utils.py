@@ -151,12 +151,13 @@ def _convert_png_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
 
 def _convert_numpy_to_png(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
                           **kwargs) -> np.ndarray:
+    # Save the PNG
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".png"):
             save_filename = f"{save_filename}.png"
-        cv2.imwrite(save_filename, numpy_data)  # Save to PNG
+        cv2.imwrite(save_filename, numpy_data)
 
     return numpy_data
 
@@ -181,12 +182,14 @@ def _convert_numpy_to_nii_gz(numpy_data: np.ndarray, source_data_filepath=None, 
     else:
         new_nifti_data = nib.Nifti1Image(numpy_data, affine=np.eye(4))
 
+    # Save the NII.GZ
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".nii.gz"):
             save_filename = f"{save_filename}.nii.gz"
-        nib.save(img=new_nifti_data, filename=save_filename)  # Save to NII.GZ
+        nib.save(img=new_nifti_data, filename=save_filename)
+
     return new_nifti_data
 
 
@@ -202,12 +205,14 @@ def save_nii_gz_in_identity_affine(numpy_data=None, data_filepath=None, save_fil
         raise ValueError("Provide either numpy data or data filepath")
     new_nifti_data = nib.Nifti1Image(numpy_data, affine=np.eye(4))
 
+    # Save the NII.GZ
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".nii.gz"):
             save_filename = f"{save_filename}.nii.gz"
-        nib.save(img=new_nifti_data, filename=save_filename)  # Save to NII.GZ
+        nib.save(img=new_nifti_data, filename=save_filename)
+    
     return new_nifti_data
 
 
@@ -246,15 +251,15 @@ def _convert_numpy_to_ply(numpy_data: np.ndarray, source_data_filepath=None, sav
     else:
         raise ValueError("Invalid data format")
 
-
+    # Save the PLY
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         save_filename = f"{save_filename}_{ply_extension}"
         if "mesh" in ply_extension:
-            new_ply_data.export(file_obj=save_filename)  # Save to PLY
+            new_ply_data.export(file_obj=save_filename)
         elif "pcd" in ply_extension:
-            o3d.io.write_point_cloud(filename=save_filename, pointcloud=new_ply_data)  # Save to PLY
+            o3d.io.write_point_cloud(filename=save_filename, pointcloud=new_ply_data)
         else:
             raise ValueError("Invalid data format")
 
@@ -297,7 +302,6 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
 
     # V2 - Naive Union of Cubes (Issue: Large files)
-
     # mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     # voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
 
@@ -321,24 +325,16 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #     )
     #     cubes.append(cube)
     # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
+    # mesh.remove_duplicate_faces()
+    # mesh.remove_degenerate_faces()
+    # mesh.remove_unreferenced_vertices()
+    # mesh.merge_vertices()
     # if voxel_size != 1.0:
     #     mesh.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
     # if mesh_scale != 1.0:
     #     mesh.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
 
-
-    # if save_filename is not None and len(save_filename) > 0:
-    #     save_filename = str(save_filename)
-    #     os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
-    #     if not save_filename.endswith("obj"):
-    #         save_filename = f"{save_filename}.obj"
-    #     mesh.export(file_obj=save_filename)  # Save to OBJ
-
-    # new_obj_data = mesh
-    # return new_obj_data
-
     # V3 - Cuberille / Exposed-Faces Meshing (Issue: Bad Shading in MeshLab)
-
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
 
@@ -436,16 +432,16 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     mesh.merge_vertices()
     trimesh.repair.fix_winding(mesh)     # make orientation coherent
 
-    if save_filename:
+    # Save the OBJ
+    if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
-        out_dir = os.path.dirname(save_filename)
-        if out_dir:
-            os.makedirs(out_dir, exist_ok=True)
-        if not save_filename.lower().endswith(".obj"):
-            save_filename += ".obj"
-        mesh.export(save_filename, include_normals=False)
+        os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
+        if not save_filename.endswith("obj"):
+            save_filename = f"{save_filename}.obj"
+        mesh.export(file_obj=save_filename)
 
-    return mesh
+    new_obj_data = mesh
+    return new_obj_data
 
 
 #################################
@@ -539,14 +535,13 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     if points_scale != 1.0:
         pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
 
-
     # Save the PCD
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".pcd"):
             save_filename = f"{save_filename}.pcd"
-        o3d.io.write_point_cloud(filename=save_filename, pointcloud=pcd, write_ascii=True)  # Save to PCD
+        o3d.io.write_point_cloud(filename=save_filename, pointcloud=pcd, write_ascii=True)
 
     new_pcd_data = pcd
     return new_pcd_data
@@ -562,12 +557,13 @@ def _convert_npy_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
 
 def _convert_numpy_to_npy(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
                           **kwargs) -> np.ndarray:
+    # Save the NPY
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".npy"):
             save_filename = f"{save_filename}.npy"
-        np.save(file=save_filename, arr=numpy_data)  # Save to NPY
+        np.save(file=save_filename, arr=numpy_data)
     return numpy_data
 
 
