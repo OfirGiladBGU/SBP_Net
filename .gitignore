@@ -175,6 +175,7 @@ cython_debug/
 
 
 # Project specific files
+.vscode/
 data/
 data_crops/
 data_results/
