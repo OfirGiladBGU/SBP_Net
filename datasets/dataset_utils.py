@@ -329,6 +329,8 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     # mesh.remove_degenerate_faces()
     # mesh.remove_unreferenced_vertices()
     # mesh.merge_vertices()
+    # trimesh.repair.fix_winding(mesh)
+
     # if voxel_size != 1.0:
     #     mesh.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
     # if mesh_scale != 1.0:
@@ -430,7 +432,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     mesh.remove_degenerate_faces()
     mesh.remove_unreferenced_vertices()
     mesh.merge_vertices()
-    trimesh.repair.fix_winding(mesh)     # make orientation coherent
+    trimesh.repair.fix_winding(mesh)  # make orientation coherent
 
     # Save the OBJ
     if save_filename is not None and len(save_filename) > 0:
