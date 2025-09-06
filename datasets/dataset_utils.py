@@ -296,7 +296,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #     cubes.append(cube)
     # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
 
-    # V2 - Naive Union of Cubes
+    # V2 - Naive Union of Cubes (Issue: Large files)
 
     # mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     # voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
@@ -337,7 +337,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     # new_obj_data = mesh
     # return new_obj_data
 
-    # V3 - Cuberille / Exposed-Faces Meshing
+    # V3 - Cuberille / Exposed-Faces Meshing (Issue: Bad Shading in MeshLab)
 
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
@@ -434,7 +434,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     mesh.remove_degenerate_faces()
     mesh.remove_unreferenced_vertices()
     mesh.merge_vertices()
-    trimesh.repair.fix_normals(mesh)
+    trimesh.repair.fix_winding(mesh)     # make orientation coherent
 
     if save_filename:
         save_filename = str(save_filename)
@@ -443,7 +443,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
             os.makedirs(out_dir, exist_ok=True)
         if not save_filename.lower().endswith(".obj"):
             save_filename += ".obj"
-        mesh.export(save_filename)
+        mesh.export(save_filename, include_normals=False)
 
     return mesh
 
