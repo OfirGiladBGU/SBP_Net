@@ -98,7 +98,8 @@ def convert_data_file_to_numpy(data_filepath, apply_data_threshold: bool = False
         ".ply": _convert_ply_to_numpy,
         ".obj": _convert_obj_to_numpy,
         ".pcd": _convert_pcd_to_numpy,
-        ".npy": _convert_npy_to_numpy
+        ".npy": _convert_npy_to_numpy,
+        ".npz": _convert_npz_to_numpy
     }
     data_filepath = str(data_filepath)
     data_extension = get_data_file_extension(data_filepath=data_filepath)
@@ -122,7 +123,8 @@ def convert_numpy_to_data_file(numpy_data: np.ndarray, source_data_filepath, sav
         ".ply": _convert_numpy_to_ply,
         ".obj": _convert_numpy_to_obj,
         ".pcd": _convert_numpy_to_pcd,
-        ".npy": _convert_numpy_to_npy  # Notice: Save as .npy ignores the source_data_filepath
+        ".npy": _convert_numpy_to_npy,  # Notice: Save as .npy ignores the source_data_filepath
+        ".npz": _convert_numpy_to_npz
     }
     source_data_filepath = str(source_data_filepath)
     data_extension = get_data_file_extension(data_filepath=source_data_filepath)
@@ -566,6 +568,84 @@ def _convert_numpy_to_npy(numpy_data: np.ndarray, source_data_filepath=None, sav
         if not save_filename.endswith(".npy"):
             save_filename = f"{save_filename}.npy"
         np.save(file=save_filename, arr=numpy_data)
+    return numpy_data
+
+
+#################################
+# npz to numpy and numpy to npz #
+#################################
+
+# TODO: test npz conversion
+# NOTE: Assumes NPZ format ["points", "normals"] for:
+# https://github.com/autonomousvision/convolutional_occupancy_networks
+
+def _convert_npz_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
+    points_scale = kwargs.get("points_scale", 1.0)  # Define points scale
+    voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell)
+
+    # Load points to PCD
+    numpy_data = np.load(file=data_filepath)
+    points = numpy_data["points"]
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    # Same as PCD
+    if points_scale != 1.0:
+        pcd.scale(scale=points_scale, center=pcd.get_center())  # Scale relative to center
+    voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(input=pcd, voxel_size=voxel_size)  # Voxelize pcd
+
+    # Build numpy data
+    grid_indices = np.array([voxel.grid_index for voxel in voxel_grid.get_voxels()])  # Get voxel centers
+    grid_shape = np.max(grid_indices, axis=0) + 1
+    numpy_data = np.zeros(shape=grid_shape, dtype=np.uint8)
+    for grid_index in grid_indices:
+        numpy_data[tuple(grid_index)] = 1  # 1 = occupied, 0 = empty
+
+    return numpy_data
+
+
+def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
+                          **kwargs) -> np.ndarray:
+    points_scale = kwargs.get("points_scale", 1.0)  # Define points scale [Original]
+    voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell) [Original]
+
+    # Find origin
+    if source_data_filepath != "dummy.npz":
+        numpy_data = np.load(file=source_data_filepath)
+        source_points = numpy_data["points"]
+        source_pcd = o3d.geometry.PointCloud()
+        source_pcd.points = o3d.utility.Vector3dVector(source_points)
+        if points_scale != 1.0:
+            source_pcd.scale(scale=points_scale, center=source_pcd.get_center())  # Scale relative to center
+        source_voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(input=source_pcd, voxel_size=voxel_size)  # Voxelize pcd
+        source_origin = source_voxel_grid.origin
+    else:
+        source_origin = np.array([0, 0, 0])
+
+    grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
+    voxels = (grid_indices + source_origin)  # Apply the inverse shift to recover the original coordinates
+
+    pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
+    pcd.points = o3d.utility.Vector3dVector(voxels)
+
+    if voxel_size != 1.0:
+        pcd.scale(scale=(1.0 / voxel_size), center=pcd.get_center())  # Scale relative to center
+    if points_scale != 1.0:
+        pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
+
+    points = np.array(pcd.points)
+    npz_data_dict = {
+        "points": points,
+        "normals": None,
+    }
+
+    # Save the NPY
+    if save_filename is not None and len(save_filename) > 0:
+        save_filename = str(save_filename)
+        os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
+        if not save_filename.endswith(".npz"):
+            save_filename = f"{save_filename}.npz"
+        np.savez(file=save_filename, **npz_data_dict)
     return numpy_data
 
 
