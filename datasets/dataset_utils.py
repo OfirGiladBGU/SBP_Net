@@ -636,7 +636,7 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
     points = np.array(pcd.points)
     npz_data_dict = {
         "points": points,
-        "normals": None,
+        "normals": np.zeros_like(points)  # Placeholder normals
     }
 
     # Save the NPY
