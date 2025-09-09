@@ -340,102 +340,176 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
 
 
     # V3 - Cuberille / Exposed-Faces Meshing (Issue: Bad Shading in MeshLab)
+    # mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
+    # voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
+
+    # # Find minimum bounds
+    # if source_data_filepath is not None and source_data_filepath != "dummy.obj":
+    #     source_mesh = trimesh.load(source_data_filepath)
+    #     min_bounds = source_mesh.bounds[0]  # Extract minimum bounds from source mesh
+    # else:
+    #     min_bounds = np.zeros(3, dtype=float)   
+
+    # # Pad so boundary voxels have 'air' neighbors outside the grid
+    # pad = np.pad(numpy_data, ((1,1),(1,1),(1,1)), mode='constant', constant_values=False)
+
+    # # Indices of occupied voxels in XYZ order
+    # xx, yy, zz = np.nonzero(numpy_data)
+
+    # vertices = []
+    # faces = []
+    # vmap = {}  # (x,y,z) -> vertex index
+
+    # def vid(p):
+    #     """Return vertex index for integer corner p=(x,y,z), creating if needed."""
+    #     idx = vmap.get(p)
+    #     if idx is None:
+    #         idx = len(vertices)
+    #         vmap[p] = idx
+    #         # store as float; translation + scaling applied later to the mesh
+    #         vertices.append(np.array(p, dtype=float))
+    #     return idx
+
+    # # Emit faces only where neighbor is empty; orientations are CCW as seen from outside
+    # for x, y, z in zip(xx, yy, zz):
+    #     X, Y, Z = x + 1, y + 1, z + 1  # padded indices
+
+    #     # +X face (neighbor at +X is empty)
+    #     if not pad[X+1, Y, Z]:
+    #         p0 = (x+1, y  , z  ); p1 = (x+1, y+1, z  )
+    #         p2 = (x+1, y+1, z+1); p3 = (x+1, y  , z+1)
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    #     # -X face
+    #     if not pad[X-1, Y, Z]:
+    #         p0 = (x, y  , z  ); p1 = (x, y  , z+1)
+    #         p2 = (x, y+1, z+1); p3 = (x, y+1, z  )
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    #     # +Y face
+    #     if not pad[X, Y+1, Z]:
+    #         p0 = (x  , y+1, z  ); p1 = (x+1, y+1, z  )
+    #         p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    #     # -Y face
+    #     if not pad[X, Y-1, Z]:
+    #         p0 = (x  , y, z  ); p1 = (x  , y, z+1)
+    #         p2 = (x+1, y, z+1); p3 = (x+1, y, z  )
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    #     # +Z face
+    #     if not pad[X, Y, Z+1]:
+    #         p0 = (x  , y  , z+1); p1 = (x+1, y  , z+1)
+    #         p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    #     # -Z face
+    #     if not pad[X, Y, Z-1]:
+    #         p0 = (x  , y  , z); p1 = (x  , y+1, z)
+    #         p2 = (x+1, y+1, z); p3 = (x+1, y  , z)
+    #         faces.append([vid(p0), vid(p1), vid(p2)])
+    #         faces.append([vid(p0), vid(p2), vid(p3)])
+
+    # mesh = trimesh.Trimesh(
+    #     vertices=np.asarray(vertices),
+    #     faces=np.asarray(faces, dtype=np.int64),
+    #     process=False
+    # )
+
+    # # Apply your original transform order: translate, then inverse scales
+    # if np.any(min_bounds != 0.0):
+    #     mesh.apply_translation(min_bounds)
+    # if voxel_size != 1.0:
+    #     mesh.apply_scale(1.0 / voxel_size)
+    # if mesh_scale != 1.0:
+    #     mesh.apply_scale(1.0 / mesh_scale)
+
+    # # Minimal, non-iterative cleanup (keeps it slicer-friendly)
+    # mesh.remove_duplicate_faces()
+    # mesh.remove_degenerate_faces()
+    # mesh.remove_unreferenced_vertices()
+    # mesh.merge_vertices()
+    # trimesh.repair.fix_winding(mesh)  # make orientation coherent
+
+
+    # V4 - Voxel surface extraction
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
 
-    # Find minimum bounds
-    if source_data_filepath is not None and source_data_filepath != "dummy.obj":
-        source_mesh = trimesh.load(source_data_filepath)
-        min_bounds = source_mesh.bounds[0]  # Extract minimum bounds from source mesh
-    else:
-        min_bounds = np.zeros(3, dtype=float)   
+    # normalize voxel_size to (sx, sy, sz)
+    sx = sy = sz = float(voxel_size)
 
-    # Pad so boundary voxels have 'air' neighbors outside the grid
-    pad = np.pad(numpy_data, ((1,1),(1,1),(1,1)), mode='constant', constant_values=False)
+    # face definitions for each exposed side of a unit voxel
+    face_defs = {
+        'xmin': [(0,0,0),(0,1,0),(0,1,1),(0,0,1)],
+        'xmax': [(1,0,0),(1,0,1),(1,1,1),(1,1,0)],
+        'ymin': [(0,0,0),(0,0,1),(1,0,1),(1,0,0)],
+        'ymax': [(0,1,0),(1,1,0),(1,1,1),(0,1,1)],
+        'zmin': [(0,0,0),(1,0,0),(1,1,0),(0,1,0)],
+        'zmax': [(0,0,1),(0,1,1),(1,1,1),(1,0,1)],
+    }
 
-    # Indices of occupied voxels in XYZ order
-    xx, yy, zz = np.nonzero(numpy_data)
+    verts = []
+    vmap = {}  # world-vertex (x,y,z) -> index
+    tris = []
 
-    vertices = []
-    faces = []
-    vmap = {}  # (x,y,z) -> vertex index
-
-    def vid(p):
-        """Return vertex index for integer corner p=(x,y,z), creating if needed."""
-        idx = vmap.get(p)
+    def add_v(ix, iy, iz):
+        key = (ix * sx, iy * sy, iz * sz)
+        idx = vmap.get(key)
         if idx is None:
-            idx = len(vertices)
-            vmap[p] = idx
-            # store as float; translation + scaling applied later to the mesh
-            vertices.append(np.array(p, dtype=float))
+            idx = len(verts)
+            vmap[key] = idx
+            verts.append(key)
         return idx
 
-    # Emit faces only where neighbor is empty; orientations are CCW as seen from outside
-    for x, y, z in zip(xx, yy, zz):
-        X, Y, Z = x + 1, y + 1, z + 1  # padded indices
+    nx, ny, nz = numpy_data.shape
+    for x, y, z in product(range(nx), range(ny), range(nz)):
+        if not numpy_data[x, y, z]:
+            continue
 
-        # +X face (neighbor at +X is empty)
-        if not pad[X+1, Y, Z]:
-            p0 = (x+1, y  , z  ); p1 = (x+1, y+1, z  )
-            p2 = (x+1, y+1, z+1); p3 = (x+1, y  , z+1)
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
+        neighbors = {
+            'xmin': (x-1, y,   z  ),
+            'xmax': (x+1, y,   z  ),
+            'ymin': (x,   y-1, z  ),
+            'ymax': (x,   y+1, z  ),
+            'zmin': (x,   y,   z-1),
+            'zmax': (x,   y,   z+1),
+        }
 
-        # -X face
-        if not pad[X-1, Y, Z]:
-            p0 = (x, y  , z  ); p1 = (x, y  , z+1)
-            p2 = (x, y+1, z+1); p3 = (x, y+1, z  )
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
+        for side, (nx_, ny_, nz_) in neighbors.items():
+            empty = (nx_ < 0 or ny_ < 0 or nz_ < 0 or
+                     nx_ >= nx or ny_ >= ny or nz_ >= nz or
+                     not numpy_data[nx_, ny_, nz_])
+            if not empty:
+                continue
 
-        # +Y face
-        if not pad[X, Y+1, Z]:
-            p0 = (x  , y+1, z  ); p1 = (x+1, y+1, z  )
-            p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
+            q = [add_v(x+dx, y+dy, z+dz) for (dx, dy, dz) in face_defs[side]]
+            # triangulate quad -> two triangles
+            tris.append((q[0], q[1], q[2]))
+            tris.append((q[0], q[2], q[3]))
 
-        # -Y face
-        if not pad[X, Y-1, Z]:
-            p0 = (x  , y, z  ); p1 = (x  , y, z+1)
-            p2 = (x+1, y, z+1); p3 = (x+1, y, z  )
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
-
-        # +Z face
-        if not pad[X, Y, Z+1]:
-            p0 = (x  , y  , z+1); p1 = (x+1, y  , z+1)
-            p2 = (x+1, y+1, z+1); p3 = (x  , y+1, z+1)
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
-
-        # -Z face
-        if not pad[X, Y, Z-1]:
-            p0 = (x  , y  , z); p1 = (x  , y+1, z)
-            p2 = (x+1, y+1, z); p3 = (x+1, y  , z)
-            faces.append([vid(p0), vid(p1), vid(p2)])
-            faces.append([vid(p0), vid(p2), vid(p3)])
-
+    # build trimesh
     mesh = trimesh.Trimesh(
-        vertices=np.asarray(vertices),
-        faces=np.asarray(faces, dtype=np.int64),
+        vertices=np.asarray(verts, dtype=float),
+        faces=np.asarray(tris, dtype=np.int64),
         process=False
     )
 
-    # Apply your original transform order: translate, then inverse scales
-    if np.any(min_bounds != 0.0):
-        mesh.apply_translation(min_bounds)
-    if voxel_size != 1.0:
-        mesh.apply_scale(1.0 / voxel_size)
+    # apply uniform post-scale
     if mesh_scale != 1.0:
-        mesh.apply_scale(1.0 / mesh_scale)
+        mesh.apply_scale(float(mesh_scale))
 
-    # Minimal, non-iterative cleanup (keeps it slicer-friendly)
+    # minimal, safe cleanup (doesn't change geometry)
     mesh.remove_duplicate_faces()
     mesh.remove_degenerate_faces()
-    mesh.remove_unreferenced_vertices()
     mesh.merge_vertices()
-    trimesh.repair.fix_winding(mesh)  # make orientation coherent
+    mesh.invert()  # trimesh quirk: face normals point inward by default
 
     # Save the OBJ
     if save_filename is not None and len(save_filename) > 0:
