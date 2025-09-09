@@ -1,19 +1,29 @@
+import os
 import pathlib
 import sys
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
-from datasets.dataset_utils import get_data_file_extension, convert_data_file_to_numpy, convert_numpy_to_data_file
+from datasets.dataset_utils import get_data_file_extension, convert_data_file_to_numpy, convert_numpy_to_data_file, get_data_file_stem
 
 
 def convert():
+    """
+    Convert input from one format to another
+    """
     numpy_data = convert_data_file_to_numpy(
         data_filepath=data_filepath,
         **src_kwargs
     )
 
-    input_extension = get_data_file_extension(data_filepath=data_filepath)
     source_extension = get_data_file_extension(data_filepath=source_data_filepath)
-    save_filename = data_filepath.replace(input_extension, source_extension)
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+        input_stem = get_data_file_stem(data_filepath=data_filepath)
+        save_filename = str(pathlib.Path(save_dir).joinpath(f"{input_stem}{source_extension}"))
+    else:
+        input_extension = get_data_file_extension(data_filepath=data_filepath)
+        save_filename = data_filepath.replace(input_extension, source_extension)
+
     convert_numpy_to_data_file(
         numpy_data=numpy_data,
         source_data_filepath=source_data_filepath,
@@ -25,6 +35,7 @@ def convert():
 if __name__ == '__main__':
     # Input
     data_filepath = r".\output.npy"
+    save_dir = None
     source_data_filepath = r"dummy.obj"
     # source_data_filepath = r"dummy.pcd"
 
