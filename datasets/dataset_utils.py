@@ -303,6 +303,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #     cubes.append(cube)
     # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
 
+
     # V2 - Naive Union of Cubes (Issue: Large files)
     # mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     # voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
@@ -338,12 +339,13 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     # if mesh_scale != 1.0:
     #     mesh.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
 
+
     # V3 - Cuberille / Exposed-Faces Meshing (Issue: Bad Shading in MeshLab)
     mesh_scale = kwargs.get("mesh_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 2.0)  # Define voxel size (the size of each grid cell) [Original]
 
     # Find minimum bounds
-    if source_data_filepath != "dummy.obj":
+    if source_data_filepath is not None and source_data_filepath != "dummy.obj":
         source_mesh = trimesh.load(source_data_filepath)
         min_bounds = source_mesh.bounds[0]  # Extract minimum bounds from source mesh
     else:
@@ -545,14 +547,16 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell) [Original]
 
     # Find origin
-    if source_data_filepath != "dummy.pcd":
+    if source_data_filepath is not None and source_data_filepath != "dummy.pcd":
         source_pcd = o3d.io.read_point_cloud(source_data_filepath)
         if points_scale != 1.0:
             source_pcd.scale(scale=points_scale, center=source_pcd.get_center())  # Scale relative to center
         source_voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(input=source_pcd, voxel_size=voxel_size)  # Voxelize pcd
         source_origin = source_voxel_grid.origin
+        source_center = source_pcd.get_center()
     else:
         source_origin = np.array([0, 0, 0])
+        source_center = np.array([0, 0, 0])
 
     grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
     centers = source_origin + (grid_indices + 0.5) * float(voxel_size)
@@ -560,7 +564,7 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     pcd.points = o3d.utility.Vector3dVector(centers)
 
     if points_scale != 1.0:
-        pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
+        pcd.scale(scale=(1.0 / points_scale), center=source_center)  # Scale relative to center
 
     # Save the PCD
     if save_filename is not None and len(save_filename) > 0:
@@ -633,7 +637,7 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
     voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell) [Original]
 
     # Find origin
-    if source_data_filepath != "dummy.npz":
+    if source_data_filepath is not None and source_data_filepath != "dummy.npz":
         numpy_data = np.load(file=source_data_filepath)
         source_points = numpy_data["points"]
         source_pcd = o3d.geometry.PointCloud()
