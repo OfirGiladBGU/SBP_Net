@@ -30,9 +30,11 @@ pip install git+https://github.com/Po-Hsun-Su/pytorch-ssim.git
 pip install torchmetrics
 pip install torcheval
 
+
 # Optional for using Mesh Export (Union of Cubes) #
 
 pip install rtree
+
 
 # Optional for using ViT in model_1d #
 
@@ -48,6 +50,7 @@ pip install einops
 # Optional for using gan3d in model_3d #
 
 pip install scikit-learn
+
 
 ## To enable Keras GAN3D ##
 
