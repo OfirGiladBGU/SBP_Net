@@ -515,6 +515,32 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
 
 
     # V3 - Using Open3D VoxelGrid and correct shift
+    # points_scale = kwargs.get("points_scale", 1.0)  # Define points scale [Original]
+    # voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell) [Original]
+
+    # # Find origin
+    # if source_data_filepath != "dummy.pcd":
+    #     source_pcd = o3d.io.read_point_cloud(source_data_filepath)
+    #     if points_scale != 1.0:
+    #         source_pcd.scale(scale=points_scale, center=source_pcd.get_center())  # Scale relative to center
+    #     source_voxel_grid = o3d.geometry.VoxelGrid.create_from_point_cloud(input=source_pcd, voxel_size=voxel_size)  # Voxelize pcd
+    #     source_origin = source_voxel_grid.origin
+    # else:
+    #     source_origin = np.array([0, 0, 0])
+
+    # grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
+    # voxels = (grid_indices + source_origin)  # Apply the inverse shift to recover the original coordinates
+
+    # pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
+    # pcd.points = o3d.utility.Vector3dVector(voxels)
+
+    # if voxel_size != 1.0:
+    #     pcd.scale(scale=(1.0 / voxel_size), center=pcd.get_center())  # Scale relative to center
+    # if points_scale != 1.0:
+    #     pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
+
+
+    # V4 - Convert Points to Discrete Voxels (Correct Reverse Shift)
     points_scale = kwargs.get("points_scale", 1.0)  # Define points scale [Original]
     voxel_size = kwargs.get("voxel_size", 1.0)  # Define voxel size (the size of each grid cell) [Original]
 
@@ -529,13 +555,10 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
         source_origin = np.array([0, 0, 0])
 
     grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
-    voxels = (grid_indices + source_origin)  # Apply the inverse shift to recover the original coordinates
-
+    centers = source_origin + (grid_indices + 0.5) * float(voxel_size)
     pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
-    pcd.points = o3d.utility.Vector3dVector(voxels)
+    pcd.points = o3d.utility.Vector3dVector(centers)
 
-    if voxel_size != 1.0:
-        pcd.scale(scale=(1.0 / voxel_size), center=pcd.get_center())  # Scale relative to center
     if points_scale != 1.0:
         pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
 
