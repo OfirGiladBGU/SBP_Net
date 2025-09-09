@@ -86,6 +86,7 @@ def pad_to_match_all_dims(from_ref, to_pad, pad_value=0):
     slices = tuple(slice(0, s) for s in ref_shape)
     return padded[slices]
 
+# TODO: Check how to make Abstract converter from supported file formats
 
 def convert_data_file_to_numpy(data_filepath, apply_data_threshold: bool = False, **kwargs) -> np.ndarray:
     if not os.path.exists(data_filepath):
@@ -141,6 +142,8 @@ def convert_numpy_to_data_file(numpy_data: np.ndarray, source_data_filepath, sav
     else:
         raise ValueError(f"Invalid data format (Got extension: '{data_extension}')")
 
+# TODO: Support full convertion from one type to another (i.e. PCD to OBJ)
+# Need to implement for any "_convert_numpy_to_{data_extension}" function transformation extraction from any data type
 
 #################################
 # png to numpy and numpy to png #
@@ -166,8 +169,6 @@ def _convert_numpy_to_png(numpy_data: np.ndarray, source_data_filepath=None, sav
 #######################################
 # nii.gz to numpy and numpy to nii.gz #
 #######################################
-
-# TODO: return or apply the affine transformation to the numpy data for the save later
 def _convert_nii_gz_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
     nifti_data = nib.load(data_filepath)
     numpy_data = nifti_data.get_fdata()
@@ -195,6 +196,7 @@ def _convert_numpy_to_nii_gz(numpy_data: np.ndarray, source_data_filepath=None, 
     return new_nifti_data
 
 
+# TODO: return or apply the affine transformation to the numpy data for the save later
 # DEBUG: Save NII.GZ with identity affine
 def save_nii_gz_in_identity_affine(numpy_data=None, data_filepath=None, save_filename=None,
                                    **kwargs) -> nib.Nifti1Image:
@@ -221,9 +223,6 @@ def save_nii_gz_in_identity_affine(numpy_data=None, data_filepath=None, save_fil
 #################################
 # ply to numpy and numpy to ply #
 #################################
-
-# TODO: Check how to make Abstract converter from supported file formats
-
 def _convert_ply_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
     # Mesh PLY
     if data_filepath.endswith("mesh.ply"):
