@@ -19,6 +19,9 @@ import nibabel as nib
 import trimesh
 import open3d as o3d
 
+# For .binvox
+from datasets.utils import binvox_rw
+
 from configs.configs_parser import IMAGES_6_VIEWS
 
 
@@ -100,7 +103,8 @@ def convert_data_file_to_numpy(data_filepath, apply_data_threshold: bool = False
         ".obj": _convert_obj_to_numpy,
         ".pcd": _convert_pcd_to_numpy,
         ".npy": _convert_npy_to_numpy,
-        ".npz": _convert_npz_to_numpy
+        ".npz": _convert_npz_to_numpy,
+        ".binvox": _convert_binvox_to_numpy
     }
     data_filepath = str(data_filepath)
     data_extension = get_data_file_extension(data_filepath=data_filepath)
@@ -125,7 +129,8 @@ def convert_numpy_to_data_file(numpy_data: np.ndarray, source_data_filepath, sav
         ".obj": _convert_numpy_to_obj,
         ".pcd": _convert_numpy_to_pcd,
         ".npy": _convert_numpy_to_npy,  # Notice: Save as .npy ignores the source_data_filepath
-        ".npz": _convert_numpy_to_npz
+        ".npz": _convert_numpy_to_npz,
+        ".binvox": _convert_numpy_to_binvox  # Notice: Save as .binvox ignores the source_data_filepath
     }
     source_data_filepath = str(source_data_filepath)
     data_extension = get_data_file_extension(data_filepath=source_data_filepath)
@@ -736,7 +741,8 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
     points = np.array(pcd.points)
     npz_data_dict = {
         "points": points,
-        "normals": np.zeros_like(points)  # Placeholder normals
+        "normals": np.zeros_like(points),  # Placeholder normals
+        "occupancies": np.ones(shape=(points.shape[0],), dtype=np.uint8)  # Placeholder occupancies
     }
 
     # Save the NPY
@@ -746,6 +752,41 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
         if not save_filename.endswith(".npz"):
             save_filename = f"{save_filename}.npz"
         np.savez(file=save_filename, **npz_data_dict)
+    return numpy_data
+
+
+#######################################
+# binvox to numpy and numpy to binvox #
+#######################################
+def _convert_binvox_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
+    with open(data_filepath, 'rb') as f:
+        voxels_data = binvox_rw.read_as_3d_array(f)
+    numpy_data = voxels_data.data.astype(np.uint8)
+    return numpy_data
+
+
+def _convert_numpy_to_binvox(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
+                             **kwargs) -> np.ndarray:
+    if source_data_filepath is None or len(source_data_filepath) == 0:
+        with open(source_data_filepath, 'rb') as f:
+            voxels_data = binvox_rw.read_as_3d_array(f)
+        voxels_data.data = numpy_data.astype(np.uint8)
+    else:
+        voxels_data = binvox_rw.Voxels(
+            data=numpy_data.astype(np.uint8),
+            dims=numpy_data.shape,
+            translate=[0.0, 0.0, 0.0],
+            scale=1.0,
+            axis_order='xyz'
+        )
+
+    if save_filename is not None and len(save_filename) > 0:
+        save_filename = str(save_filename)
+        os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
+        if not save_filename.endswith(".binvox"):
+            save_filename = f"{save_filename}.binvox"
+        with open(save_filename, 'wb') as f:
+            binvox_rw.write(voxels_data, f)
     return numpy_data
 
 
