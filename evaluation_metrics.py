@@ -607,7 +607,7 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
 
         # Full 3D Metrics #
         dice_score = 2 * np.sum(output_data * target_data) / (np.sum(output_data) + np.sum(target_data))
-        idx_format = get_data_file_stem(data_filepath=target_filepath)
+        idx_format = get_data_file_stem(data_filepath=target_filepath_idx)
         dice_scores_dict[idx_format] = dice_score
 
         # Masked 3D Metrics #
