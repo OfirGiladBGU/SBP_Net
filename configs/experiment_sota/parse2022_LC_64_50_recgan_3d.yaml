@@ -1,3 +1,5 @@
+# Trained from: models/sota/model_3d/recgan_3d
+
 DATASET_INPUT_FOLDER: "parse2022"
 DATASET_OUTPUT_FOLDER: "parse2022_LC_64_50"
 DATA_CROP_STRIDE: 64

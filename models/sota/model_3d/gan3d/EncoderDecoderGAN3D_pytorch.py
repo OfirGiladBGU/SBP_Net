@@ -1,5 +1,3 @@
-from __future__ import print_function, division
-
 import os
 from mpl_toolkits.mplot3d import Axes3D  # you should keep the import
 import matplotlib
