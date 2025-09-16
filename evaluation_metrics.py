@@ -750,10 +750,12 @@ def calculate_3d_custom_metrics(data_3d_stem, source_data_3d_folder=None, compon
         raise ValueError("Invalid components_mode")
 
 
-def full_folder_predict(data_type: DataType):
-    run_full_predict = True
-    compare_crops_mode = True
-    apply_abs = True  # True - When the input has no outliers (Train Data), False - When the input has outliers (Eval Data)
+def full_folder_evaluate(data_type: DataType):
+    use_log_data = args.use_log_data
+    run_full_predict = args.run_full_predict
+    run_full_merge = args.run_full_merge
+    compare_crops_mode = args.compare_crops_mode
+    apply_abs = args.apply_abs
 
     # Select which tests to run
     test_2d_metrics = args.test_2d_metrics
@@ -765,42 +767,65 @@ def full_folder_predict(data_type: DataType):
     # Prepare Data #
     ################
 
-    if data_type == DataType.TRAIN:
-        log_data = pd.read_csv(TRAIN_LOG_PATH)
+    if use_log_data:
+        if data_type == DataType.TRAIN:
+            log_data = pd.read_csv(TRAIN_LOG_PATH)
+
+            # source_data_3d_folder = PREDS
+            source_data_3d_folder = PREDS_FIXED
+
+            # data_3d_folder = LABELS_3D  # SANITY
+            # data_3d_folder = PREDS_3D
+            data_3d_folder = PREDS_FIXED_3D
+            # data_3d_folder = PREDS_ADVANCED_FIXED_3D
+
+            # data_2d_folder = LABELS_2D  # SANITY
+            # data_2d_folder = PREDS_2D
+            data_2d_folder = PREDS_FIXED_2D
+            # data_2d_folder = PREDS_ADVANCED_FIXED_2D
+        else:
+            log_data = pd.read_csv(EVAL_LOG_PATH)
+
+            source_data_3d_folder = EVALS
+
+            data_3d_folder = EVALS_3D
+
+            data_2d_folder = EVALS_2D
+
+        index_3d_uniques = log_data["index_3d"].unique()
+        data_3d_stem_list = [data_3d_stem[1:] for data_3d_stem in index_3d_uniques]
+
+        # Evaluate on Training - Test Data
+        if data_3d_folder != EVALS_3D:
+            split_percentage = 0.9
+            index_3d_split_index = min(round(len(index_3d_uniques) * split_percentage), len(index_3d_uniques) - 1)
+
+            # train_stems = data_3d_stem_list[:index_3d_split_index]
+            test_stems = data_3d_stem_list[index_3d_split_index:]
+
+            data_3d_stem_list = test_stems
+    else:
+        log_data = None
 
         # source_data_3d_folder = PREDS
         source_data_3d_folder = PREDS_FIXED
+        # source_data_3d_folder = EVALS
 
         # data_3d_folder = LABELS_3D  # SANITY
         # data_3d_folder = PREDS_3D
         data_3d_folder = PREDS_FIXED_3D
         # data_3d_folder = PREDS_ADVANCED_FIXED_3D
+        # data_3d_folder = EVALS_3D
 
         # data_2d_folder = LABELS_2D  # SANITY
         # data_2d_folder = PREDS_2D
         data_2d_folder = PREDS_FIXED_2D
         # data_2d_folder = PREDS_ADVANCED_FIXED_2D
-    else:
-        log_data = pd.read_csv(EVAL_LOG_PATH)
+        # data_2d_folder = EVALS_2D
 
-        source_data_3d_folder = EVALS
+        merged_pipeline_results_filepaths = list(pathlib.Path(MERGE_PIPELINE_RESULTS_PATH).glob("*.*"))
+        data_3d_stem_list = [get_data_file_stem(data_filepath=data_3d_filepath) for data_3d_filepath in merged_pipeline_results_filepaths]
 
-        data_3d_folder = EVALS_3D
-
-        data_2d_folder = EVALS_2D
-
-    index_3d_uniques = log_data["index_3d"].unique()
-    data_3d_stem_list = [data_3d_stem[1:] for data_3d_stem in index_3d_uniques]
-
-    # Evaluate on Training - Test Data
-    if data_3d_folder != EVALS_3D:
-        split_percentage = 0.9
-        index_3d_split_index = min(round(len(index_3d_uniques) * split_percentage), len(index_3d_uniques) - 1)
-
-        # train_stems = data_3d_stem_list[:index_3d_split_index]
-        test_stems = data_3d_stem_list[index_3d_split_index:]
-
-        data_3d_stem_list = test_stems
 
     data_3d_stem_count = len(data_3d_stem_list)
 
@@ -916,7 +941,7 @@ def full_folder_predict(data_type: DataType):
 
         args.export_2d = prev_export_2d
 
-        if compare_crops_mode is False:
+        if run_full_merge:
             for idx, data_3d_stem in enumerate(data_3d_stem_list):
                 print(f"[File: {data_3d_stem}, Number: {idx + 1}/{data_3d_stem_count}] Merging...")
                 full_merge(
@@ -1001,7 +1026,7 @@ def main():
 
     # TODO: Requires Model Init
     data_type = DataType.TRAIN
-    full_folder_predict(data_type=data_type)
+    full_folder_evaluate(data_type=data_type)
 
 
 if __name__ == "__main__":
@@ -1063,8 +1088,20 @@ if __name__ == "__main__":
     parser.add_argument('--test-3d-custom-metrics', default=False,
                         help='Run the 3D custom metrics')
     
+    # Metrics Data flags
+    parser.add_argument('--use-log-data', action='store_true', default=True,
+                        help='Use CSV log data to get the list of 3D objects to evaluate')
+    parser.add_argument('--run-full-predict', action='store_true', default=True,
+                        help='Run the full prediction pipeline')
+    parser.add_argument('--run-full-merge', action='store_true', default=True,
+                        help='Run the full merge pipeline')
+    parser.add_argument('--compare-crops-mode', default=True,
+                        help='Enable compare crops mode of the 3D results with the GT in DATA_CROPS_PATH (otherwise the GT in DATA_PATH will be compared)')
+    parser.add_argument('--apply-abs', action='store_true', default=True,
+                        help='True - When the input has no outliers (Train Data), False - When the input has outliers (Eval Data)')
+    
     args = parser.parse_args()
-    args.mode = "offline"
+    args.mode = "offline"  # Metrics can only be run in offline mode
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     args.device = torch.device("cuda" if args.cuda else "cpu")
@@ -1088,6 +1125,43 @@ if __name__ == "__main__":
     # Paper config #
     args.model_2d = "ae_2d_to_2d"
     args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+    args.use_log_data = True 
+    args.run_full_predict = True
+    args.run_full_merge = True
+    args.compare_crops_mode = True
+
+
+    # SOTA DeepCA config #
+    # args.model_3d = ""  # Trained from DeepCA repo
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = False 
+    # args.run_full_predict = False
+    # args.run_full_merge = False
+    # args.compare_crops_mode = False
+
+
+    # SOTA Convolutional Occupancy Networks config #
+    # args.model_3d = ""  # Trained from OReX repo
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = False 
+    # args.run_full_predict = False
+    # args.run_full_merge = False
+    # args.compare_crops_mode = False
+
+
+    # # SOTA OReX config #
+    # args.model_3d = ""  # Trained from OReX repo
+    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+    # args.run_2d_flow = False
+    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = False 
+    # args.run_full_predict = False
+    # args.run_full_merge = False
+    # args.compare_crops_mode = False
 
 
     # SOTA Unet3D config #
@@ -1096,6 +1170,10 @@ if __name__ == "__main__":
     # args.run_2d_flow = False
     # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
     # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = True 
+    # args.run_full_predict = True
+    # args.run_full_merge = True
+    # args.compare_crops_mode = False
 
 
     # SOTA MBD config #
@@ -1104,6 +1182,10 @@ if __name__ == "__main__":
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     # args.run_2d_flow = False
     # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = True 
+    # args.run_full_predict = False
+    # args.run_full_merge = True
+    # args.compare_crops_mode = False
 
 
     # SOTA 3D RecGAN config #
@@ -1111,5 +1193,9 @@ if __name__ == "__main__":
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     # args.run_2d_flow = False
     # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
+    # args.use_log_data = True 
+    # args.run_full_predict = True
+    # args.run_full_merge = True
+    # args.compare_crops_mode = False
 
     main()
