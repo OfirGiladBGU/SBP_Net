@@ -1143,7 +1143,7 @@ if __name__ == "__main__":
 
 
     # SOTA Convolutional Occupancy Networks config #
-    # args.model_3d = ""  # Trained from OReX repo
+    # args.model_3d = ""  # Trained from Convolutional Occupancy Network repo
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     # args.run_2d_flow = False
     # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
