@@ -4,7 +4,7 @@
 ## Description:
 
 The repository contains all the scripts that were used to get the results available on the paper: \
-`Learning Thin Structure Reconstruction from Sliding-Box Depth Projections`
+`SBDP: Learning Thin Structure Reconstruction from Sliding-Box Depth Projections`
 
 
 ## Requirements:
@@ -21,21 +21,28 @@ In case that you have a dataset of 3D input files with holes and 3D ground truth
 (Example: for [Parse2022](https://grand-challenge.org/forums/forum/parse2022-623/) data, we took SOTA model results 
 (i.e. [MEDPSeg](https://github.com/MICLab-Unicamp/medpseg)) as our input data, along with `Parse2022` labels as our ground truth data).
 
-1. Put the `parse2022` dataset with the `labels` and `preds` data on the path: `./data/parse2022`
-   - `labels` - The 3D ground truth
-   - `preds` - The 3D input
-2. Create config file in `.yaml` format and put it in `configs` folder (see example: [parse2022_SC_32.yaml](configs/parse2022_SC_32.yaml)).
+1. Put the `parse2022` dataset on the path: `./data/parse2022` with the `labels` and `preds` data on the sub folders:
+   - `labels` - The 3D ground truth (Parse2022 Label Segmentation)
+   - `preds` - The 3D input (MEDPSeg/SOTA Predictions)
+
+   See example: \
+   ![data_dir_example](assets/data_dir_example.png)
+2. Create config file in `.yaml` format and put it in `configs` folder. \
+See examples: 
+   - [parse2022_SC_32.yaml](configs/parse2022_SC_32.yaml)
+   - [parse2022_LC_32.yaml](configs/parse2022_LC_32.yaml)
 3. Update the `CONFIG_FILENAME` field inside the [configs_parser.py](configs/configs_parser.py) with the `.yaml` filepath relative to the `./configs` folder path.
 4. Build the `dataset_2d` (also `dataset_1d`) by running `dataset_2d_creator` script: [dataset_2d_creator.py](datasets_forge/dataset_2d_creator.py)
-5. Build the `dataset_3d` by running  `dataset_3d_creator` script: [dataset_3d_creator.py](datasets_forge/dataset_3d_creator.py)
-6. Notice that the following structure will be created in the `DATASET_INPUT_FOLDER`:
+5. [Optional] Build the `dataset_3d` by running  `dataset_3d_creator` script: [dataset_3d_creator.py](datasets_forge/dataset_3d_creator.py) \
+(In case `3D to 3D` models are used).
+6. Notice that the following structure will be created in the `DATASET_INPUT_FOLDER` (from config):
    - A new folder named `preds_fixed` will be created with the data from `preds` after outliers removal.
    - For each `<folder>` in [`labels`, `preds`, `preds_fixed`]:
      ```
      ./data/parse2022
      └── <folder>_components      // (Components of the 3D data)
      ```
-7. Notice that the following structure will be created in the `DATASET_OUTPUT_FOLDER`:
+7. Notice that the following structure will be created in the `DATASET_OUTPUT_FOLDER` (from config):
    - For each `<folder>` in [`labels`, `preds`, `preds_fixed`, `preds_advanced_fixed`]:
      ```
      ./data_crops/parse2022
