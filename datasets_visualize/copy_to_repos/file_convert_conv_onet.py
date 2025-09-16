@@ -36,10 +36,10 @@ def convert():
 if __name__ == '__main__':
     # Input
     # src_folder = f"{root_path}/data/parse2022/labels"
-    # dst_folder = f"{root_path}/../convolutional_occupancy_networks/data/parse_labels"
+    # dst_folder = f"{root_path}/../convolutional_occupancy_networks/data/parse_labels/originals"
 
     src_folder = f"{root_path}/data/parse2022/preds_fixed"
-    save_dir = f"{root_path}/../convolutional_occupancy_networks/data/parse_preds_fixed"
+    save_dir = f"{root_path}/../convolutional_occupancy_networks/data/parse_preds_fixed/originals"
 
     filepaths = sorted(pathlib.Path(src_folder).glob("*.*"))
     for idx, fp in enumerate(filepaths):
