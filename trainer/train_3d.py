@@ -6,7 +6,6 @@ import copy
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import wandb
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 import datetime
@@ -20,6 +19,8 @@ from trainer import train_utils
 class Trainer(object):
     def __init__(self, args: argparse.Namespace, dataset, model):
         self.args = args
+        if self.args.wandb:
+            import wandb
 
         self.device = self.args.device
         self.dataset = dataset
