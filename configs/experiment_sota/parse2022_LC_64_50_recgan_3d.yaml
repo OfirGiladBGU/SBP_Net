@@ -1,7 +1,7 @@
 # Trained from: models/sota/model_3d/recgan_3d
 
 DATASET_INPUT_FOLDER: "parse2022"
-DATASET_OUTPUT_FOLDER: "parse2022_LC_64_50"
+DATASET_OUTPUT_FOLDER: "parse2022_LC_64_50_recgan_3d"
 DATA_CROP_STRIDE: 64
 DATA_CROP_SIZE: 64
 DENSITY_LOWER_THRESHOLD: 0.0001  # 0.00001
@@ -13,7 +13,7 @@ INCLUDE_2D_PROJECTIONS: False  # Works directly with 3D data, so no need to incl
 
 
 # Predict Pipeline:
-APPLY_FUSION: True
+APPLY_FUSION: False
 
 #APPLY_INPUT_MERGE_2D: False
 #APPLY_THRESHOLD_2D: True
