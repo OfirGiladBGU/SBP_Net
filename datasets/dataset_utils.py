@@ -100,6 +100,7 @@ def convert_data_file_to_numpy(data_filepath, apply_data_threshold: bool = False
         # 3D
         ".nii.gz": _convert_nii_gz_to_numpy,
         ".ply": _convert_ply_to_numpy,
+        ".off": _convert_off_to_numpy,
         ".obj": _convert_obj_to_numpy,
         ".pcd": _convert_pcd_to_numpy,
         ".npy": _convert_npy_to_numpy,
@@ -126,6 +127,7 @@ def convert_numpy_to_data_file(numpy_data: np.ndarray, source_data_filepath, sav
         # 3D
         ".nii.gz": _convert_numpy_to_nii_gz,
         ".ply": _convert_numpy_to_ply,
+        ".off": _convert_numpy_to_off,
         ".obj": _convert_numpy_to_obj,
         ".pcd": _convert_numpy_to_pcd,
         ".npy": _convert_numpy_to_npy,  # Notice: Save as .npy ignores the source_data_filepath
@@ -146,6 +148,7 @@ def convert_numpy_to_data_file(numpy_data: np.ndarray, source_data_filepath, sav
         )
     else:
         raise ValueError(f"Invalid data format (Got extension: '{data_extension}')")
+
 
 # TODO: Support full convertion from one type to another (i.e. PCD to OBJ)
 # Need to implement for any "_convert_numpy_to_{data_extension}" function transformation extraction from any data type
@@ -170,6 +173,7 @@ def _convert_numpy_to_png(numpy_data: np.ndarray, source_data_filepath=None, sav
         cv2.imwrite(save_filename, numpy_data)
 
     return numpy_data
+
 
 #######################################
 # nii.gz to numpy and numpy to nii.gz #
@@ -199,7 +203,6 @@ def _convert_numpy_to_nii_gz(numpy_data: np.ndarray, source_data_filepath=None, 
         nib.save(img=new_nifti_data, filename=save_filename)
 
     return new_nifti_data
-
 
 # TODO: return or apply the affine transformation to the numpy data for the save later
 # DEBUG: Save NII.GZ with identity affine
@@ -246,14 +249,12 @@ def _convert_numpy_to_ply(numpy_data: np.ndarray, source_data_filepath=None, sav
     # Mesh PLY
     if source_data_filepath.endswith("mesh.ply"):
         ply_extension = "mesh.ply"
-        mesh = _convert_numpy_to_obj(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
-        new_ply_data = mesh
+        new_ply_data = _convert_numpy_to_obj(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
 
     # Point Cloud PLY
     elif source_data_filepath.endswith("pcd.ply"):
         ply_extension = "pcd.ply"
-        pcd = _convert_numpy_to_pcd(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
-        new_ply_data = pcd
+        new_ply_data = _convert_numpy_to_pcd(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
     else:
         raise ValueError("Invalid data format")
 
@@ -273,6 +274,29 @@ def _convert_numpy_to_ply(numpy_data: np.ndarray, source_data_filepath=None, sav
 
 
 #################################
+# off to numpy and numpy to off #
+#################################
+def _convert_off_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
+    numpy_data = _convert_obj_to_numpy(data_filepath=data_filepath, **kwargs)
+    return numpy_data
+
+
+def _convert_numpy_to_off(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
+                          **kwargs) -> trimesh.Trimesh:
+    new_off_data = _convert_numpy_to_obj(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
+
+    # Save the OFF
+    if save_filename is not None and len(save_filename) > 0:
+        save_filename = str(save_filename)
+        os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
+        if not save_filename.endswith("off"):
+            save_filename = f"{save_filename}.off"
+        new_off_data.export(file_obj=save_filename)
+
+    return new_off_data
+
+
+#################################
 # obj to numpy and numpy to obj #
 #################################
 def _convert_obj_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
@@ -283,8 +307,8 @@ def _convert_obj_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
     if mesh_scale != 1.0:
         mesh.apply_scale(mesh_scale)
     voxelized = mesh.voxelized(pitch=voxel_size)  # Pitch = voxel size
-
     numpy_data = voxelized.matrix.astype(np.uint8)
+
     return numpy_data
 
 
@@ -305,7 +329,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #         transform=trimesh.transformations.translation_matrix(center)
     #     )
     #     cubes.append(cube)
-    # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
+    # new_obj_data = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
 
 
     # V2 - Naive Union of Cubes (Issue: Large files)
@@ -331,17 +355,17 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #         transform=trimesh.transformations.translation_matrix(center)
     #     )
     #     cubes.append(cube)
-    # mesh = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
-    # mesh.remove_duplicate_faces()
-    # mesh.remove_degenerate_faces()
-    # mesh.remove_unreferenced_vertices()
-    # mesh.merge_vertices()
-    # trimesh.repair.fix_winding(mesh)
+    # new_obj_data = trimesh.util.concatenate(cubes)  # Combine all cubes into a single mesh
+    # new_obj_data.remove_duplicate_faces()
+    # new_obj_data.remove_degenerate_faces()
+    # new_obj_data.remove_unreferenced_vertices()
+    # new_obj_data.merge_vertices()
+    # trimesh.repair.fix_winding(new_obj_data)
 
     # if voxel_size != 1.0:
-    #     mesh.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
+    #     new_obj_data.apply_scale(1.0 / voxel_size)  # Apply reverse the scale
     # if mesh_scale != 1.0:
-    #     mesh.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
+    #     new_obj_data.apply_scale(1.0 / mesh_scale)  # Apply reverse the scale
 
 
     # V3 - Cuberille / Exposed-Faces Meshing (Issue: Bad Shading in MeshLab)
@@ -421,7 +445,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
     #         faces.append([vid(p0), vid(p1), vid(p2)])
     #         faces.append([vid(p0), vid(p2), vid(p3)])
 
-    # mesh = trimesh.Trimesh(
+    # new_obj_data = trimesh.Trimesh(
     #     vertices=np.asarray(vertices),
     #     faces=np.asarray(faces, dtype=np.int64),
     #     process=False
@@ -429,18 +453,18 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
 
     # # Apply your original transform order: translate, then inverse scales
     # if np.any(min_bounds != 0.0):
-    #     mesh.apply_translation(min_bounds)
+    #     new_obj_data.apply_translation(min_bounds)
     # if voxel_size != 1.0:
-    #     mesh.apply_scale(1.0 / voxel_size)
+    #     new_obj_data.apply_scale(1.0 / voxel_size)
     # if mesh_scale != 1.0:
-    #     mesh.apply_scale(1.0 / mesh_scale)
+    #     new_obj_data.apply_scale(1.0 / mesh_scale)
 
     # # Minimal, non-iterative cleanup (keeps it slicer-friendly)
-    # mesh.remove_duplicate_faces()
-    # mesh.remove_degenerate_faces()
-    # mesh.remove_unreferenced_vertices()
-    # mesh.merge_vertices()
-    # trimesh.repair.fix_winding(mesh)  # make orientation coherent
+    # new_obj_data.remove_duplicate_faces()
+    # new_obj_data.remove_degenerate_faces()
+    # new_obj_data.remove_unreferenced_vertices()
+    # new_obj_data.merge_vertices()
+    # trimesh.repair.fix_winding(new_obj_data)  # make orientation coherent
 
 
     # V4 - Voxel surface extraction
@@ -500,7 +524,7 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
             tris.append((q[0], q[2], q[3]))
 
     # build trimesh
-    mesh = trimesh.Trimesh(
+    new_obj_data = trimesh.Trimesh(
         vertices=np.asarray(verts, dtype=float),
         faces=np.asarray(tris, dtype=np.int64),
         process=False
@@ -508,13 +532,13 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
 
     # apply uniform post-scale
     if mesh_scale != 1.0:
-        mesh.apply_scale(float(mesh_scale))
+        new_obj_data.apply_scale(float(mesh_scale))
 
     # minimal, safe cleanup (doesn't change geometry)
-    mesh.remove_duplicate_faces()
-    mesh.remove_degenerate_faces()
-    mesh.merge_vertices()
-    mesh.invert()  # trimesh quirk: face normals point inward by default
+    new_obj_data.remove_duplicate_faces()
+    new_obj_data.remove_degenerate_faces()
+    new_obj_data.merge_vertices()
+    new_obj_data.invert()  # trimesh quirk: face normals point inward by default
 
     # Save the OBJ
     if save_filename is not None and len(save_filename) > 0:
@@ -522,9 +546,8 @@ def _convert_numpy_to_obj(numpy_data: np.ndarray, source_data_filepath=None, sav
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith("obj"):
             save_filename = f"{save_filename}.obj"
-        mesh.export(file_obj=save_filename)
+        new_obj_data.export(file_obj=save_filename)
 
-    new_obj_data = mesh
     return new_obj_data
 
 
@@ -577,8 +600,8 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     # occupied_indices = np.argwhere(numpy_data == 1)  # Find occupied voxels (indices where numpy_data == 1)
     # points = occupied_indices * voxel_size  # Convert indices to real-world coordinates (Scale by voxel size)
     #
-    # pcd = o3d.geometry.PointCloud()  # Create Open3D PointCloud
-    # pcd.points = o3d.utility.Vector3dVector(points)
+    # new_pcd_data = o3d.geometry.PointCloud()  # Create Open3D PointCloud
+    # new_pcd_data.points = o3d.utility.Vector3dVector(points)
 
 
     # V2 - Convert Points to Discrete Voxels
@@ -590,8 +613,8 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     #
     # original_points = voxel_indices + shift  # Apply the inverse shift to recover the original coordinates
     #
-    # pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
-    # pcd.points = o3d.utility.Vector3dVector(original_points)
+    # new_pcd_data = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
+    # new_pcd_data.points = o3d.utility.Vector3dVector(original_points)
 
 
     # V3 - Using Open3D VoxelGrid and correct shift
@@ -611,13 +634,13 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
     # grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
     # voxels = (grid_indices + source_origin)  # Apply the inverse shift to recover the original coordinates
 
-    # pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
-    # pcd.points = o3d.utility.Vector3dVector(voxels)
+    # new_pcd_data = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
+    # new_pcd_data.points = o3d.utility.Vector3dVector(voxels)
 
     # if voxel_size != 1.0:
-    #     pcd.scale(scale=(1.0 / voxel_size), center=pcd.get_center())  # Scale relative to center
+    #     new_pcd_data.scale(scale=(1.0 / voxel_size), center=new_pcd_data.get_center())  # Scale relative to center
     # if points_scale != 1.0:
-    #     pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
+    #     new_pcd_data.scale(scale=(1.0 / points_scale), center=new_pcd_data.get_center())  # Scale relative to center
 
 
     # V4 - Convert Points to Discrete Voxels (Correct Reverse Shift)
@@ -638,11 +661,11 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
 
     grid_indices = np.argwhere(numpy_data > 0.0)  # Find the indices of all non-zero voxels [Shape: (N, 3)]
     centers = source_origin + (grid_indices + 0.5) * float(voxel_size)
-    pcd = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
-    pcd.points = o3d.utility.Vector3dVector(centers)
+    new_pcd_data = o3d.geometry.PointCloud()  # Convert the points to Open3D PointCloud
+    new_pcd_data.points = o3d.utility.Vector3dVector(centers)
 
     if points_scale != 1.0:
-        pcd.scale(scale=(1.0 / points_scale), center=source_center)  # Scale relative to center
+        new_pcd_data.scale(scale=(1.0 / points_scale), center=source_center)  # Scale relative to center
 
     # Save the PCD
     if save_filename is not None and len(save_filename) > 0:
@@ -650,9 +673,8 @@ def _convert_numpy_to_pcd(numpy_data: np.ndarray, source_data_filepath=None, sav
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".pcd"):
             save_filename = f"{save_filename}.pcd"
-        o3d.io.write_point_cloud(filename=save_filename, pointcloud=pcd, write_ascii=True)
+        o3d.io.write_point_cloud(filename=save_filename, pointcloud=new_pcd_data, write_ascii=True)
 
-    new_pcd_data = pcd
     return new_pcd_data
 
 
@@ -673,6 +695,7 @@ def _convert_numpy_to_npy(numpy_data: np.ndarray, source_data_filepath=None, sav
         if not save_filename.endswith(".npy"):
             save_filename = f"{save_filename}.npy"
         np.save(file=save_filename, arr=numpy_data)
+
     return numpy_data
 
 
@@ -681,7 +704,7 @@ def _convert_numpy_to_npy(numpy_data: np.ndarray, source_data_filepath=None, sav
 #################################
 
 # TODO: test npz conversion
-# NOTE: Assumes NPZ format ["points", "normals"] for:
+# NOTE: Assumes NPZ format ["points", "normals", "occupancies"] for:
 # https://github.com/autonomousvision/convolutional_occupancy_networks
 
 def _convert_npz_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
@@ -739,10 +762,10 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
         pcd.scale(scale=(1.0 / points_scale), center=pcd.get_center())  # Scale relative to center
 
     points = np.array(pcd.points)
-    npz_data_dict = {
+    new_npz_data = {
         "points": points,
-        "normals": np.zeros_like(points),  # Placeholder normals
-        "occupancies": np.ones(shape=(points.shape[0],), dtype=np.uint8)  # Placeholder occupancies
+        "normals": np.zeros_like(points),  # Placeholder normals  (TODO: Validate Correctness)
+        "occupancies": np.ones(shape=(points.shape[0],), dtype=np.uint8)  # Placeholder occupancies  (TODO: Validate Correctness)
     }
 
     # Save the NPY
@@ -751,8 +774,9 @@ def _convert_numpy_to_npz(numpy_data: np.ndarray, source_data_filepath=None, sav
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
         if not save_filename.endswith(".npz"):
             save_filename = f"{save_filename}.npz"
-        np.savez(file=save_filename, **npz_data_dict)
-    return numpy_data
+        np.savez(file=save_filename, **new_npz_data)
+
+    return new_npz_data
 
 
 #######################################
@@ -769,10 +793,10 @@ def _convert_numpy_to_binvox(numpy_data: np.ndarray, source_data_filepath=None, 
                              **kwargs) -> np.ndarray:
     if source_data_filepath is None or len(source_data_filepath) == 0:
         with open(source_data_filepath, 'rb') as f:
-            voxels_data = binvox_rw.read_as_3d_array(f)
-        voxels_data.data = numpy_data.astype(np.uint8)
+            new_binvox_data = binvox_rw.read_as_3d_array(f)
+        new_binvox_data.data = numpy_data.astype(np.uint8)
     else:
-        voxels_data = binvox_rw.Voxels(
+        new_binvox_data = binvox_rw.Voxels(
             data=numpy_data.astype(np.uint8),
             dims=numpy_data.shape,
             translate=[0.0, 0.0, 0.0],
@@ -786,8 +810,9 @@ def _convert_numpy_to_binvox(numpy_data: np.ndarray, source_data_filepath=None, 
         if not save_filename.endswith(".binvox"):
             save_filename = f"{save_filename}.binvox"
         with open(save_filename, 'wb') as f:
-            binvox_rw.write(voxels_data, f)
-    return numpy_data
+            binvox_rw.write(new_binvox_data, f)
+
+    return new_binvox_data
 
 
 ################
