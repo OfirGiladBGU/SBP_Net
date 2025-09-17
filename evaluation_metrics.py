@@ -600,7 +600,7 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         target_data = convert_data_file_to_numpy(data_filepath=target_filepath_idx, apply_data_threshold=True)
 
         # (Optional) Fix data dimensions
-        if args.apply_fix:
+        if args.apply_fusion_fix:
             input_data = pad_to_match_all_dims(from_ref=target_data, to_pad=input_data)
             output_data = pad_to_match_all_dims(from_ref=target_data, to_pad=output_data)
 
