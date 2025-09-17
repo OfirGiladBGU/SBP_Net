@@ -181,5 +181,5 @@ data_crops/
 data_results/
 wandb/
 weights/
-data_input/
-data_output/
+conv_onet/
+orex/
