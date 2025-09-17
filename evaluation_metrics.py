@@ -600,10 +600,11 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         target_data = convert_data_file_to_numpy(data_filepath=target_filepath_idx, apply_data_threshold=True)
 
         # (Optional) Fix data dimensions
-        # input_data = pad_to_match_all_dims(from_ref=target_data, to_pad=input_data)
-        # output_data = pad_to_match_all_dims(from_ref=target_data, to_pad=output_data)
+        if args.apply_fix:
+            input_data = pad_to_match_all_dims(from_ref=target_data, to_pad=input_data)
+            output_data = pad_to_match_all_dims(from_ref=target_data, to_pad=output_data)
 
-        # output_data = np.logical_or(output_data, input_data).astype(np.int16)  # Merge output and input data
+            output_data = np.logical_or(output_data, input_data).astype(np.int16)  # Merge output and input data
 
         # Full 3D Metrics #
         dice_score = 2 * np.sum(output_data * target_data) / (np.sum(output_data) + np.sum(target_data))
@@ -1099,6 +1100,8 @@ if __name__ == "__main__":
                         help='Enable compare crops mode of the 3D results with the GT in DATA_CROPS_PATH (otherwise the GT in DATA_PATH will be compared)')
     parser.add_argument('--apply-abs', action='store_true', default=True,
                         help='True - When the input has no outliers (Train Data), False - When the input has outliers (Eval Data)')
+    parser.add_argument('--apply-fusion-fix', default=False,
+                        help='Enable fusion fix on output step (usually needed for surface reconstruction methods)')
     
     args = parser.parse_args()
     args.mode = "offline"  # Metrics can only be run in offline mode
@@ -1151,6 +1154,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True  # Enable fix as CON reconstruct surfaces
 
 
     # # SOTA OReX config #
@@ -1186,6 +1190,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = True
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
 
 
     # SOTA 3D RecGAN config #
