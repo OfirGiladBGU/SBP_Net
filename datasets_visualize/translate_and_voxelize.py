@@ -1,3 +1,5 @@
+# Tool for Convolutional Occupancy Networks `.off` and `.ply` files alignment
+
 import numpy as np
 import open3d as o3d
 import trimesh
