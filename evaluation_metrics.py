@@ -529,14 +529,14 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
     else:
         # Notice: A list of 1 file will be compared
 
+        # Patch for Parse2022 (MEDPSeg save format)
+        # data_3d_stem = data_3d_stem.replace('_vessel', '')
+
         # Baseline
         # output_folder = PREDS
         # output_folder = PREDS_FIXED
         # output_folder = PREDS_ADVANCED_FIXED_3D
         # output_filepaths = list(pathlib.Path(output_folder).glob(f"{data_3d_stem}*.*"))
-
-        # Fix for Parse2022 (MEDPSeg save format)
-        # data_3d_stem = data_3d_stem.replace('_vessel', '')
 
         # Output
         output_folder = MERGE_PIPELINE_RESULTS_PATH
