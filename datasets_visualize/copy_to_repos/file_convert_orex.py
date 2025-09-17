@@ -35,8 +35,11 @@ def convert():
 
 if __name__ == '__main__':
     # Input
+    # src_folder = f"{root_path}/data/parse2022/labels"
+    # save_dir = f"{root_path}/../OReX/parse_labels/input"
+
     src_folder = f"{root_path}/data/parse2022/preds_fixed"
-    save_dir = f"{root_path}/../OReX/parse/input"
+    save_dir = f"{root_path}/../OReX/parse_preds_fixed/input"
 
     filepaths = sorted(pathlib.Path(src_folder).glob("*.*"))
     for idx, fp in enumerate(filepaths):
