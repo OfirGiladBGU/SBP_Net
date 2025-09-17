@@ -555,9 +555,6 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         target_folder = LABELS
         target_filepaths = list(pathlib.Path(target_folder).glob(f"{data_3d_stem}*.*"))
 
-        # Patch for Parse2022 (MEDPSeg save format)
-        # target_filepaths = list(pathlib.Path(target_folder).glob(f"{data_3d_stem.replace('_vessel', '')}*.*"))
-
         ####################
         # TODO: FOR SAFETY #
         ####################
