@@ -1,7 +1,8 @@
 import os
 import pathlib
 import sys
-sys.path.append(str(pathlib.Path(__file__).parent.parent))
+root_path = str(pathlib.Path(__file__).absolute().parent.parent)
+sys.path.append(root_path)
 
 from datasets.dataset_utils import get_data_file_extension, convert_data_file_to_numpy, convert_numpy_to_data_file, get_data_file_stem
 
