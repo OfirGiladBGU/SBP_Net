@@ -60,7 +60,7 @@ def get_vertices(data: Union[trimesh.Trimesh, np.ndarray]) -> np.ndarray:
         return data
 
 
-def calculate_translation_to_positive(files: List[str]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calculate_translation_to_positive(filepaths: List[str]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate translation needed to move all files to positive coordinates.
     
@@ -71,8 +71,8 @@ def calculate_translation_to_positive(files: List[str]) -> Tuple[np.ndarray, np.
     
     all_min_bounds = []
     all_max_bounds = []
-    
-    for filepath in files:
+
+    for filepath in filepaths:
         print(f"  Loading {filepath}...")
         data = load_mesh_or_pointcloud(filepath)
         vertices = get_vertices(data)
@@ -153,7 +153,7 @@ def voxelize_translated_data(data: Union[trimesh.Trimesh, np.ndarray],
     return voxel_grid
 
 
-def process_files_with_translation(files: List[str], input_dir: str, output_dir: str, grid_size: int = 512, voxel_size: float = 1.0, export_obj: bool = False) -> None:
+def process_files_with_translation(filepaths: List[str], input_dir: str, output_dir: str, grid_size: int = 512, voxel_size: float = 1.0, export_obj: bool = False) -> None:
     """
     Process files by translating to positive coordinates and voxelizing in grid_size^3 box.
     """
@@ -161,20 +161,16 @@ def process_files_with_translation(files: List[str], input_dir: str, output_dir:
     print(f"TRANSLATION TO POSITIVE + {grid_size}^3 VOXELIZATION")
     print("="*80)
     
-    # Create output directory
-    output_path = pathlib.Path(output_dir)
-    output_path.mkdir(exist_ok=True)
-    
     # Calculate translation needed
-    global_min_bounds, translation_vector, max_translated_bounds = calculate_translation_to_positive(files)
+    global_min_bounds, translation_vector, max_translated_bounds = calculate_translation_to_positive(filepaths)
 
-    print(f"\nProcessing {len(files)} files with translation + {grid_size}^3 voxelization...")
-    print(f"Output directory: {output_path}")
+    print(f"\nProcessing {len(filepaths)} files with translation + {grid_size}^3 voxelization...")
+    print(f"Output directory: {output_dir}")
     
     # Process each file
     results = []
-    for i, filepath in enumerate(files):
-        print(f"\nProcessing file {i+1}/{len(files)}: {filepath}")
+    for i, filepath in enumerate(filepaths):
+        print(f"\nProcessing file {i+1}/{len(filepaths)}: {filepath}")
         
         # Load data
         data = load_mesh_or_pointcloud(filepath)
@@ -200,8 +196,9 @@ def process_files_with_translation(files: List[str], input_dir: str, output_dir:
         
         # Generate output filename
         filepath_relative = pathlib.Path(filepath).relative_to(input_dir)
-        npy_filepath = f"{pathlib.Path(output_path).joinpath(filepath_relative)}.npy"
-        
+        # npy_filepath = f"{pathlib.Path(output_path).joinpath(filepath_relative)}.npy"  # If ext required to be kept
+        npy_filepath = str(pathlib.Path(output_dir).joinpath(filepath_relative).with_suffix(".npy"))
+
         # Save voxel grid
         _convert_numpy_to_npy(numpy_data=voxel_grid, save_filename=npy_filepath)
         print(f"  Saved: {npy_filepath}")
@@ -230,7 +227,7 @@ def process_files_with_translation(files: List[str], input_dir: str, output_dir:
     print(f"Voxel size: {voxel_size}")
     print(f"Translation applied: [{translation_vector[0]:.2f}, {translation_vector[1]:.2f}, {translation_vector[2]:.2f}]")
     print(f"All files now in positive coordinate space")
-    print(f"Output directory: {output_path}")
+    print(f"Output directory: {output_dir}")
     print()
     
     for i, result in enumerate(results, 1):
@@ -269,8 +266,15 @@ def main():
         "PA000168",
         "PA000169",
     ]
+
+    # Convolutional Occupancy Networks input/output directories
     input_dir = pathlib.Path(root_path).joinpath("datasets_visualize/conv_onet/data_input")
     output_dir = pathlib.Path(root_path).joinpath("datasets_visualize/conv_onet/data_output")
+
+    # OReX input/output directories
+    # input_dir = pathlib.Path(root_path).joinpath("datasets_visualize/orex/data_input")
+    # output_dir = pathlib.Path(root_path).joinpath("datasets_visualize/orex/data_output")
+
     os.makedirs(output_dir, exist_ok=True)
     
     # Process with translation to positive coordinates + 512^3 voxelization
@@ -286,11 +290,11 @@ def main():
             continue
         
         process_files_with_translation(
-            filepaths, 
-            input_dir, 
-            output_dir, 
-            grid_size, 
-            voxel_size, 
+            filepaths=filepaths,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            grid_size=grid_size,
+            voxel_size=voxel_size,
             export_obj=export_obj
         )
 

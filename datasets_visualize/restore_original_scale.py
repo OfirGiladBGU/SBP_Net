@@ -112,8 +112,8 @@ def restore_original_scale(gt_file, input_files, input_dir, output_dir):
         
         # Generate output filename - convert to OBJ format
         filepath_relative = pathlib.Path(input_file).relative_to(input_dir)
-        obj_filepath = f"{pathlib.Path(output_dir).joinpath(filepath_relative)}.obj"
-        
+        obj_filepath = pathlib.Path(output_dir).joinpath(filepath_relative).with_suffix(".obj")
+
         try:
             scale_back_mesh(input_file, obj_filepath, scale_factor)
         except Exception as e:
