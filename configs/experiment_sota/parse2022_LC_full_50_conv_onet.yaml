@@ -1,6 +1,6 @@
 # Trained from: https://github.com/OfirGiladBGU/convolutional_occupancy_networks
 
-DATASET_INPUT_FOLDER: "parse2022"
+DATASET_INPUT_FOLDER: "pares2022_conv_onet"
 DATASET_OUTPUT_FOLDER: "parse2022_LC_full_50_conv_onet"
 DATA_CROP_STRIDE: -1
 DATA_CROP_SIZE: -1
