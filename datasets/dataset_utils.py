@@ -232,40 +232,79 @@ def save_nii_gz_in_identity_affine(numpy_data=None, data_filepath=None, save_fil
 # ply to numpy and numpy to ply #
 #################################
 def _convert_ply_to_numpy(data_filepath: str, **kwargs) -> np.ndarray:
-    # Mesh PLY
-    if data_filepath.endswith("mesh.ply"):
+    has_vertex = False
+    face_count = 0  # default 0 -> point cloud unless we see >0
+
+    with open(data_filepath, "rb") as f:
+        for raw in f:
+            line = raw.strip()
+            if line == b"end_header":
+                break
+            if line.startswith(b"element vertex"):
+                # e.g., b"element vertex 1234"
+                has_vertex = True
+            elif line.startswith(b"element face"):
+                # e.g., b"element face 4096"
+                parts = line.split()
+                if len(parts) >= 3 and parts[2].isdigit():
+                    face_count = int(parts[2])
+
+    if not has_vertex:
+        raise ValueError("PLY file does not contain vertex data")
+
+    if face_count > 0:
+        # Mesh PLY
         numpy_data = _convert_obj_to_numpy(data_filepath=data_filepath, **kwargs)
-    # Point Cloud PLY
-    elif data_filepath.endswith("pcd.ply"):
-        numpy_data = _convert_pcd_to_numpy(data_filepath=data_filepath, **kwargs)
     else:
-        raise ValueError("Invalid data format")
+        # Point Cloud PLY
+        numpy_data = _convert_pcd_to_numpy(data_filepath=data_filepath, **kwargs)
 
     return numpy_data
 
 
 def _convert_numpy_to_ply(numpy_data: np.ndarray, source_data_filepath=None, save_filename=None,
                           **kwargs) -> Union[trimesh.Trimesh, o3d.geometry.PointCloud]:
-    # Mesh PLY
-    if source_data_filepath.endswith("mesh.ply"):
-        ply_extension = "mesh.ply"
-        new_ply_data = _convert_numpy_to_obj(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
+    has_vertex = False
+    face_count = 0  # default 0 -> point cloud unless we see >0
 
-    # Point Cloud PLY
-    elif source_data_filepath.endswith("pcd.ply"):
-        ply_extension = "pcd.ply"
-        new_ply_data = _convert_numpy_to_pcd(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
+    if source_data_filepath is not None and source_data_filepath != "dummy.ply":
+        with open(source_data_filepath, "rb") as f:
+            for raw in f:
+                line = raw.strip()
+                if line == b"end_header":
+                    break
+                if line.startswith(b"element vertex"):
+                    # e.g., b"element vertex 1234"
+                    has_vertex = True
+                elif line.startswith(b"element face"):
+                    # e.g., b"element face 4096"
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[2].isdigit():
+                        face_count = int(parts[2])
     else:
-        raise ValueError("Invalid data format")
+        has_vertex = True
+        face_count = 0  # Assume point cloud if no source provided
+
+    if not has_vertex:
+        raise ValueError("PLY file does not contain vertex data")
+
+    if face_count > 0:
+        # Mesh PLY
+        new_ply_data = _convert_numpy_to_obj(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
+        ply_format = "mesh"
+    else:
+        # Point Cloud PLY
+        new_ply_data = _convert_numpy_to_pcd(numpy_data=numpy_data, source_data_filepath=source_data_filepath, **kwargs)
+        ply_format = "pcd"
 
     # Save the PLY
     if save_filename is not None and len(save_filename) > 0:
         save_filename = str(save_filename)
         os.makedirs(name=os.path.dirname(save_filename), exist_ok=True)
-        save_filename = f"{save_filename}_{ply_extension}"
-        if "mesh" in ply_extension:
+        save_filename = f"{save_filename}.ply"
+        if "mesh" == ply_format:
             new_ply_data.export(file_obj=save_filename)
-        elif "pcd" in ply_extension:
+        elif "pcd" == ply_format:
             o3d.io.write_point_cloud(filename=save_filename, pointcloud=new_ply_data)
         else:
             raise ValueError("Invalid data format")
