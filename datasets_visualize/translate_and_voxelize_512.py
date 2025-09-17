@@ -1,24 +1,19 @@
-#!/usr/bin/env python3
-"""
-Translate all files to positive coordinates and voxelize in 512³ box
-"""
-
 import numpy as np
 import open3d as o3d
 import trimesh
-from pathlib import Path
+import pathlib
 from typing import List, Tuple, Union
 import sys
 import os
-from itertools import product
+root_path = str(pathlib.Path(__file__).absolute().parent.parent)
+sys.path.append(root_path)
 
-# Import the numpy_to_obj function from dataset_utils
-from datasets.dataset_utils import _convert_numpy_to_obj
+from datasets.dataset_utils import _convert_numpy_to_obj, _convert_numpy_to_npy
 
 
 def load_mesh_or_pointcloud(filepath: str) -> Union[trimesh.Trimesh, np.ndarray]:
     """Load a mesh or point cloud from various formats"""
-    filepath = Path(filepath)
+    filepath = pathlib.Path(filepath)
     
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
@@ -156,22 +151,22 @@ def voxelize_translated_data(data: Union[trimesh.Trimesh, np.ndarray],
     return voxel_grid
 
 
-def process_files_with_translation(files: List[str], output_dir: str, grid_size: int = 512, voxel_size: float = 1.0) -> None:
+def process_files_with_translation(files: List[str], input_dir: str, output_dir: str, grid_size: int = 512, voxel_size: float = 1.0, export_obj: bool = False) -> None:
     """
-    Process files by translating to positive coordinates and voxelizing in 512³ box.
+    Process files by translating to positive coordinates and voxelizing in grid_size^3 box.
     """
     print("="*80)
-    print("TRANSLATION TO POSITIVE + 512³ VOXELIZATION")
+    print(f"TRANSLATION TO POSITIVE + {grid_size}^3 VOXELIZATION")
     print("="*80)
     
     # Create output directory
-    output_path = Path(output_dir)
+    output_path = pathlib.Path(output_dir)
     output_path.mkdir(exist_ok=True)
     
     # Calculate translation needed
     global_min_bounds, translation_vector, max_translated_bounds = calculate_translation_to_positive(files)
-    
-    print(f"\nProcessing {len(files)} files with translation + {grid_size}³ voxelization...")
+
+    print(f"\nProcessing {len(files)} files with translation + {grid_size}^3 voxelization...")
     print(f"Output directory: {output_path}")
     
     # Process each file
@@ -202,27 +197,23 @@ def process_files_with_translation(files: List[str], output_dir: str, grid_size:
         print(f"  Volume (filled voxels): {volume}")
         
         # Generate output filename
-        input_path = Path(filepath)
-        if "vessel" in input_path.stem and input_path.suffix == ".off":
-            output_filename = f"{input_path.stem}_prediction_translated.npy"
-        elif "vessel" in input_path.stem and input_path.suffix == ".ply":
-            output_filename = f"{input_path.stem}_input_translated.npy"
-        else:
-            output_filename = f"{input_path.stem}_ground_truth_translated.npy"
-        output_filepath = output_path / output_filename
+        filepath_relative = pathlib.Path(filepath).relative_to(input_dir)
+        npy_filepath = f"{pathlib.Path(output_path).joinpath(filepath_relative)}.npy"
         
         # Save voxel grid
-        np.save(output_filepath, voxel_grid)
-        print(f"  Saved: {output_filepath}")
+        _convert_numpy_to_npy(numpy_data=voxel_grid, save_filename=npy_filepath)
+        print(f"  Saved: {npy_filepath}")
         
         # Convert to OBJ using the imported function from dataset_utils
-        obj_filename = output_filepath.with_suffix('.obj')
-        print(f"  Converting to OBJ...")
-        mesh = _convert_numpy_to_obj(voxel_grid, save_filename=str(obj_filename), mesh_scale=1.0, voxel_size=1.0)
-        
+        if export_obj:
+            obj_filepath = str(pathlib.Path(npy_filepath).with_suffix('.obj'))
+            print(f"  Converting to OBJ...")
+            _convert_numpy_to_obj(voxel_grid, save_filename=obj_filepath, mesh_scale=1.0, voxel_size=1.0)
+            print(f"  Saved: {obj_filepath}")
+
         results.append({
             'input_file': filepath,
-            'output_file': output_filepath,
+            'output_file': npy_filepath,
             'shape': voxel_grid.shape,
             'volume': volume,
             'type': data_type,
@@ -233,7 +224,7 @@ def process_files_with_translation(files: List[str], output_dir: str, grid_size:
     print("\n" + "="*80)
     print("TRANSLATION + VOXELIZATION COMPLETE")
     print("="*80)
-    print(f"Grid size: {grid_size}³")
+    print(f"Grid size: {grid_size}^3")
     print(f"Voxel size: {voxel_size}")
     print(f"Translation applied: [{translation_vector[0]:.2f}, {translation_vector[1]:.2f}, {translation_vector[2]:.2f}]")
     print(f"All files now in positive coordinate space")
@@ -241,46 +232,65 @@ def process_files_with_translation(files: List[str], output_dir: str, grid_size:
     print()
     
     for i, result in enumerate(results, 1):
-        print(f"File {i}: {Path(result['input_file']).name}")
-        print(f"  → {result['output_file'].name}")
+        print(f"File {i}: {pathlib.Path(result['input_file']).name}")
+        print(f"  → {pathlib.Path(result['output_file']).name}")
         print(f"  → Shape: {result['shape']}, Volume: {result['volume']}, Type: {result['type']}")
-    
-    print(f"\nAll files translated and voxelized in {grid_size}³ box!")
-    
+
+    print(f"\nAll files translated and voxelized in {grid_size}^3 box!")
+
     # Calculate Dice scores for verification
-    if len(results) >= 2:
-        print(f"\nDice score verification:")
+    # if len(results) >= 2:
+    #     print(f"\nDice score verification:")
         
-        # Load and compare files
-        for i in range(len(results)):
-            for j in range(i+1, len(results)):
-                file1_data = np.load(results[i]['output_file'])
-                file2_data = np.load(results[j]['output_file'])
+    #     # Load and compare files
+    #     for i in range(len(results)):
+    #         for j in range(i+1, len(results)):
+    #             file1_data = np.load(results[i]['output_file'])
+    #             file2_data = np.load(results[j]['output_file'])
                 
-                # Calculate Dice
-                intersection = np.sum((file1_data > 0) & (file2_data > 0))
-                total = np.sum(file1_data > 0) + np.sum(file2_data > 0)
-                dice = 2.0 * intersection / total if total > 0 else 0
-                
-                file1_name = Path(results[i]['input_file']).name
-                file2_name = Path(results[j]['input_file']).name
-                print(f"  {file1_name} vs {file2_name}: Dice = {dice:.4f}")
+    #             # Calculate Dice
+    #             intersection = np.sum((file1_data > 0) & (file2_data > 0))
+    #             total = np.sum(file1_data > 0) + np.sum(file2_data > 0)
+    #             dice = 2.0 * intersection / total if total > 0 else 0
+
+    #             file1_name = pathlib.Path(results[i]['input_file']).name
+    #             file2_name = pathlib.Path(results[j]['input_file']).name
+    #             print(f"  {file1_name} vs {file2_name}: Dice = {dice:.4f}")
 
 
 def main():
     # Files to process
-    files = [
-        "data_results/parse2022_LC_full_50_conv_onet/merge_pipeline/PA000150_vessel.off",
-        "data/parse2022/evals/PA000150_vessel.ply", 
-        "data/parse2022/evals_gt/PA000150.ply"
+    stem_list = [
+        "PA000150",
+        "PA000157",
+        "PA000162",
+        "PA000168",
+        "PA000169",
     ]
+    input_dir = pathlib.Path(root_path).joinpath("datasets_visualize/data_input")
+    output_dir = pathlib.Path(root_path).joinpath("datasets_visualize/data_output")
+    os.makedirs(output_dir, exist_ok=True)
     
-    # Process with translation to positive coordinates + 512³ voxelization
-    output_dir = "translated_512_voxels"
+    # Process with translation to positive coordinates + 512^3 voxelization
     grid_size = 512
     voxel_size = 1.0
-    
-    process_files_with_translation(files, output_dir, grid_size, voxel_size)
+    export_obj = True
+
+    for stem in stem_list:
+        print(f"\nProcessing stem: {stem}")
+        filepaths = sorted(input_dir.rglob(f"{stem}*.*"))
+        if not filepaths:
+            print(f"  No files found for stem {stem} in {input_dir}")
+            continue
+        
+        process_files_with_translation(
+            filepaths, 
+            input_dir, 
+            output_dir, 
+            grid_size, 
+            voxel_size, 
+            export_obj=export_obj
+        )
 
 
 if __name__ == "__main__":
