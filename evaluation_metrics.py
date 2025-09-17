@@ -1155,9 +1155,9 @@ if __name__ == "__main__":
     # args.run_full_merge = False
     # args.compare_crops_mode = False
     # args.apply_fusion_fix = True  # Enable fix as CON reconstruct surfaces
+    # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
-
-    # # SOTA OReX config #
+    # SOTA OReX config #
     # args.model_3d = ""  # Trained from OReX repo
     # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
     # args.run_2d_flow = False
@@ -1191,6 +1191,7 @@ if __name__ == "__main__":
     # args.run_full_merge = True
     # args.compare_crops_mode = False
     # args.apply_fusion_fix = True
+    # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
     # SOTA 3D RecGAN config #
