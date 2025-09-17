@@ -1,6 +1,6 @@
 # Trained from: https://github.com/OfirGiladBGU/OReX
 
-DATASET_INPUT_FOLDER: "parse2022"
+DATASET_INPUT_FOLDER: "parse2022_orex"
 DATASET_OUTPUT_FOLDER: "parse2022_LC_full_50_orex"
 DATA_CROP_STRIDE: -1
 DATA_CROP_SIZE: -1
