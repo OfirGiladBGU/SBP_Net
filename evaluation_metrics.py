@@ -530,7 +530,7 @@ def calculate_3d_metrics(data_3d_stem, data_3d_folder=None, source_data_3d_folde
         # Notice: A list of 1 file will be compared
 
         # Patch for Parse2022 (MEDPSeg save format)
-        # data_3d_stem = data_3d_stem.replace('_vessel', '')
+        # data_3d_stem = data_3d_stem.replace('_vessel', '').replace('.off', '')
 
         # Baseline
         # output_folder = PREDS
