@@ -269,14 +269,14 @@ def main():
         "PA000168",
         "PA000169",
     ]
-    input_dir = pathlib.Path(root_path).joinpath("datasets_visualize/data_input")
-    output_dir = pathlib.Path(root_path).joinpath("datasets_visualize/data_output")
+    input_dir = pathlib.Path(root_path).joinpath("datasets_visualize/conv_onet/data_input")
+    output_dir = pathlib.Path(root_path).joinpath("datasets_visualize/conv_onet/data_output")
     os.makedirs(output_dir, exist_ok=True)
     
     # Process with translation to positive coordinates + 512^3 voxelization
     grid_size = 512
     voxel_size = 1.0
-    export_obj = True
+    export_obj = False
 
     for stem in stem_list:
         print(f"\nProcessing stem: {stem}")
