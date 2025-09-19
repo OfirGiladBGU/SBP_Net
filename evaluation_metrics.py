@@ -1181,8 +1181,8 @@ if __name__ == "__main__":
     # args.use_log_data = True 
     # args.run_full_predict = True
     # args.run_full_merge = True
-    # args.apply_fusion_fix = True
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
 
 
     # SOTA MBD config #
@@ -1207,7 +1207,7 @@ if __name__ == "__main__":
     # args.use_log_data = True 
     # args.run_full_predict = True
     # args.run_full_merge = True
-    # args.apply_fusion_fix = True
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
 
     main()
