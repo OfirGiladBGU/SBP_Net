@@ -19,8 +19,6 @@ from trainer import train_utils
 class Trainer(object):
     def __init__(self, args: argparse.Namespace, dataset, model):
         self.args = args
-        if self.args.wandb:
-            import wandb
 
         self.device = self.args.device
         self.dataset = dataset
@@ -161,6 +159,7 @@ class Trainer(object):
                 train_avg_loss, train_accuracy = self._train(epoch=epoch)
                 test_avg_loss, test_accuracy = self._test(epoch=epoch)
                 if self.args.wandb:
+                    import wandb
                     wandb.log(
                         data={
                             "Train Loss": train_avg_loss, "Test Loss": test_avg_loss,
@@ -349,6 +348,7 @@ class Trainer(object):
 
                 # Log the image to wandb
                 if self.args.wandb:
+                    import wandb
                     batch_num_str = str(batch_num).zfill(z_fill_count)
                     wandb.log(
                         data={f"Batch {batch_num_str} - Predict Plots": wandb.Image(plt)}
