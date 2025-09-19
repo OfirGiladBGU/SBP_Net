@@ -196,13 +196,13 @@ RESULTS_PATH = DATA_RESULTS_PATH.joinpath(DATASET_OUTPUT_FOLDER)
 #########
 
 # Preparation
-APPLY_LOG_FILTER = True  # Helpful to reject projections with too dense or too sparse pixels from the training loader
-APPLY_MEDIAN_FILTER = False  # Sometimes helpful for PCDs to fill missing inner black pixels
-APPLY_CONTINUITY_FIX_3D = True  # The continuity filter for true holes detection in 3D
-APPLY_CONTINUITY_FIX_2D = False  # The continuity filter for true holes detection in 2D
-BINARY_DILATION = True  # Enable the usage local scope binary dilation mask (2D - 4 directions, 3D - 6 directions)
-TRAIN_CONNECTIVITY_TYPE_3D = 6
-TRAIN_CONNECTIVITY_TYPE_2D = 4
+APPLY_LOG_FILTER = config_data.get("APPLY_LOG_FILTER", True)  # Helpful to reject projections with too dense or too sparse pixels from the training loader
+APPLY_MEDIAN_FILTER = config_data.get("APPLY_MEDIAN_FILTER", False)  # Sometimes helpful for PCDs to fill missing inner black pixels
+APPLY_CONTINUITY_FIX_3D = config_data.get("APPLY_CONTINUITY_FIX_3D", True)  # The continuity filter for true holes detection in 3D
+APPLY_CONTINUITY_FIX_2D = config_data.get("APPLY_CONTINUITY_FIX_2D", False)  # The continuity filter for true holes detection in 2D
+BINARY_DILATION = config_data.get("BINARY_DILATION", True)  # Enable the usage local scope binary dilation mask (2D - 4 directions, 3D - 6 directions)
+TRAIN_CONNECTIVITY_TYPE_3D = config_data.get("TRAIN_CONNECTIVITY_TYPE_3D", 6)
+TRAIN_CONNECTIVITY_TYPE_2D = config_data.get("TRAIN_CONNECTIVITY_TYPE_2D", 4)
 
 # Dataset 1D
 V1_1D_DATASETS = ['Trees1DV1']
