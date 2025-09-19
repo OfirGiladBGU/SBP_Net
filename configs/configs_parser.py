@@ -138,15 +138,15 @@ TASK_TYPE = task_type_map.get(config_data.get("TASK_TYPE", "PATCH_HOLES"))
 START_INDEX = config_data.get("START_INDEX", -1)
 STOP_INDEX = config_data.get("STOP_INDEX", -1)
 INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
-MERGE_WITH_SOURCE = config_data.get("MERGE_WITH_SOURCE", True)  # Info: If True, the 3D crops will be merged with the source data 3D data.
 
 # Read Weights Configurations
 WEIGHTS_1D_PATH = config_data.get("WEIGHTS_1D_PATH", None)
 WEIGHTS_2D_PATH = config_data.get("WEIGHTS_2D_PATH", None)
 WEIGHTS_3D_PATH = config_data.get("WEIGHTS_3D_PATH", None)
 
-# Read Predict Pipeline Configurations
-APPLY_FUSION = config_data.get("APPLY_FUSION", True)
+# Read Predict Pipeline Configurations (Final output will be modified)
+APPLY_FUSION = config_data.get("APPLY_FUSION", True)  # Info: (During `full_predict`) If True, the 3D crops will be merged with the source data 3D data.
+MERGE_WITH_SOURCE = config_data.get("MERGE_WITH_SOURCE", True)  # Info: (During `full_merge`) If True, the 3D crops will be merged with the source data 3D data.
 
 APPLY_INPUT_MERGE_2D = config_data.get("APPLY_INPUT_MERGE_2D", False)  # Notice: Doesn't work well with revealed occluded objects
 APPLY_THRESHOLD_2D = config_data.get("APPLY_THRESHOLD_2D", True)
