@@ -1195,7 +1195,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = True
     # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True
+    # args.apply_fusion_fix = False  # Perform fusion in full merge step
     # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
