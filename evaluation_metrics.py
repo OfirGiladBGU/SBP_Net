@@ -1143,6 +1143,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
 
 
     # SOTA Convolutional Occupancy Networks config #
@@ -1154,6 +1155,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
     # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
@@ -1166,6 +1168,7 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
+    # args.apply_fusion_fix = True
     # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
@@ -1178,6 +1181,7 @@ if __name__ == "__main__":
     # args.use_log_data = True 
     # args.run_full_predict = True
     # args.run_full_merge = True
+    # args.apply_fusion_fix = True
     # args.compare_crops_mode = False
 
 
@@ -1203,6 +1207,7 @@ if __name__ == "__main__":
     # args.use_log_data = True 
     # args.run_full_predict = True
     # args.run_full_merge = True
+    # args.apply_fusion_fix = True
     # args.compare_crops_mode = False
 
     main()

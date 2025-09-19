@@ -14,7 +14,7 @@ INCLUDE_2D_PROJECTIONS: False  # Works directly with 3D data, so no need to incl
 
 # Predict Pipeline:
 APPLY_FUSION: False
-MERGE_WITH_SOURCE: True
+MERGE_WITH_SOURCE: False
 
 #APPLY_INPUT_MERGE_2D: False
 #APPLY_THRESHOLD_2D: True
