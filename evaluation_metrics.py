@@ -1154,7 +1154,6 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True  # Enable fix surfaces reconstruction
     # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
@@ -1167,8 +1166,6 @@ if __name__ == "__main__":
     # args.run_full_predict = False
     # args.run_full_merge = False
     # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True  # Enable fix surfaces reconstruction
-    # Patch for Parse2022 (MEDPSeg save format)
     # APPLY: Patch for Parse2022 (MEDPSeg save format)
 
 
