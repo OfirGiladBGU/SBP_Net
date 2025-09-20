@@ -113,10 +113,9 @@ def crop_mini_cubes(data_3d: np.ndarray,
     mini_cubes_data = []
 
     # Iterate over the padded data with fixed steps
-    # Notice: data_3d.shape[i] - cube_dim[i] + 1 is to exclude the last half mini-cube
-    for x in range(0, data_3d.shape[0] - cube_dim[0] + 1, stride_dim[0]):
-        for y in range(0, data_3d.shape[1] - cube_dim[1] + 1, stride_dim[1]):
-            for z in range(0, data_3d.shape[2] - cube_dim[2] + 1, stride_dim[2]):
+    for x in range(0, data_3d.shape[0], stride_dim[0]):
+        for y in range(0, data_3d.shape[1], stride_dim[1]):
+            for z in range(0, data_3d.shape[2], stride_dim[2]):
                 # Crop the mini-cube
                 mini_cube = padded_data[x:x + cube_dim[0], y:y + cube_dim[1], z:z + cube_dim[2]]
                 mini_cubes.append(mini_cube)
