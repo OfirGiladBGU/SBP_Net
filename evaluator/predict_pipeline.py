@@ -10,6 +10,9 @@ from scipy.ndimage import convolve
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
 import datetime
+import sys
+root_path = str(pathlib.Path(__file__).absolute().parent.parent)
+sys.path.append(root_path)
 
 from configs.configs_parser import *
 from datasets.dataset_utils import *
