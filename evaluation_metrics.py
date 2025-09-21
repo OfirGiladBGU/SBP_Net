@@ -799,7 +799,7 @@ def full_folder_evaluate(data_type: DataType):
 
         # Evaluate on Training - Test Data
         if data_3d_folder != EVALS_3D:
-            split_percentage = PREDICT_PERCENTAGE
+            split_percentage = 1.0 - PREDICT_PERCENTAGE
             index_3d_split_index = min(round(len(index_3d_uniques) * split_percentage), len(index_3d_uniques) - 1)
 
             # train_stems = data_3d_stem_list[:index_3d_split_index]
