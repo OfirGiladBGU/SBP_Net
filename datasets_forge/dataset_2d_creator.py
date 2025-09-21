@@ -79,8 +79,17 @@ def crop_mini_cubes(data_3d: np.ndarray,
     # Faster method
     # Compute necessary padding to ensure all cubes fit within bounds
     def compute_padding(data_size, cube_dim_size, stride_size):
-        remainder = (data_size - cube_dim_size) % stride_size
-        pad_size = cube_dim_size - remainder if remainder > 0 else 0
+        if data_size < cube_dim_size:
+            # If data is smaller than cube, pad to cube size
+            pad_size = cube_dim_size - data_size
+        else:
+            # Find the last stride position that would start within original data
+            last_valid_start_in_original = ((data_size - 1) // stride_size) * stride_size
+            # The last stride position we want to support
+            last_stride_start = last_valid_start_in_original + stride_size
+            # Minimum size needed to extract cube from this position
+            min_padded_size = last_stride_start + cube_dim_size
+            pad_size = max(0, min_padded_size - data_size)
         return tuple([0, pad_size])
 
     pad_x = compute_padding(data_size=data_3d.shape[0], cube_dim_size=cube_dim[0], stride_size=stride_dim[0])
