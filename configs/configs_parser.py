@@ -66,6 +66,7 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # TODO: Use for Ex_Sota:
 
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours.yaml"
+# CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours_eval.yaml"
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_128_50_deepca.yaml"
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_full_50_conv_onet.yaml"
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_full_50_orex.yaml"
@@ -137,6 +138,7 @@ DENSITY_UPPER_THRESHOLD = config_data.get("DENSITY_UPPER_THRESHOLD", 0.9)
 TASK_TYPE = task_type_map.get(config_data.get("TASK_TYPE", "PATCH_HOLES"))
 START_INDEX = config_data.get("START_INDEX", -1)
 STOP_INDEX = config_data.get("STOP_INDEX", -1)
+PREDICT_PERCENTAGE = config_data.get("PREDICT_PERCENTAGE", 0.9)  # Info: Percentage of the data to predict, from START_INDEX to STOP_INDEX
 INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
 
 # Read Weights Configurations

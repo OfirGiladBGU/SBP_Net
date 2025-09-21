@@ -1,0 +1,40 @@
+DATASET_INPUT_FOLDER: "parse2022"
+DATASET_OUTPUT_FOLDER: "parse2022_LC_32_50_ours_eval"
+DATA_CROP_STRIDE: 16
+DATA_CROP_SIZE: 32
+DENSITY_LOWER_THRESHOLD: 0.01
+DENSITY_UPPER_THRESHOLD: 0.9
+TASK_TYPE: "LOCAL_CONNECTIVITY"
+START_INDEX: 46
+STOP_INDEX: 50
+
+WEIGHTS_2D_PATH: "weights/Network_parse2022_LC_32_50_ours_ae_2d_to_2d.pth"
+PREDICT_PERCENTAGE: 1.0  # 1.0 means all data
+
+# CONFIG:
+# APPLY_LOG_FILTER = True  # Helpful to reject projections with too dense or too sparse pixels from the training loader
+# APPLY_MEDIAN_FILTER = False  # Sometimes helpful for PCDs to fill missing inner black pixels
+# APPLY_CONTINUITY_FIX_3D = True  # The continuity filter for true holes detection in 3D
+# APPLY_CONTINUITY_FIX_2D = False  # The continuity filter for true holes detection in 2D
+# BINARY_DILATION = True  # Enable the usage local scope binary dilation mask (2D - 4 directions, 3D - 6 directions)
+# TRAIN_CONNECTIVITY_TYPE_3D = 6
+# TRAIN_CONNECTIVITY_TYPE_2D = 4
+
+
+# Predict Pipeline:
+APPLY_FUSION: True
+MERGE_WITH_SOURCE: True
+
+APPLY_INPUT_MERGE_2D: False
+APPLY_THRESHOLD_2D: True
+THRESHOLD_2D: 0.2
+APPLY_NOISE_FILTER_2D: False
+HARD_NOISE_FILTER_2D: True
+PREDICT_CONNECTIVITY_TYPE_2D: 4
+
+APPLY_INPUT_MERGE_3D: True
+APPLY_THRESHOLD_3D: True
+THRESHOLD_3D: 0.5
+APPLY_NOISE_FILTER_3D: True
+HARD_NOISE_FILTER_3D: True
+PREDICT_CONNECTIVITY_TYPE_3D: 6
