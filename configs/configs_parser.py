@@ -138,7 +138,7 @@ DENSITY_UPPER_THRESHOLD = config_data.get("DENSITY_UPPER_THRESHOLD", 0.9)
 TASK_TYPE = task_type_map.get(config_data.get("TASK_TYPE", "PATCH_HOLES"))
 START_INDEX = config_data.get("START_INDEX", -1)
 STOP_INDEX = config_data.get("STOP_INDEX", -1)
-PREDICT_PERCENTAGE = config_data.get("PREDICT_PERCENTAGE", 0.9)  # Info: Percentage of the data to predict, from START_INDEX to STOP_INDEX
+PREDICT_SKIP_PERCENTAGE = config_data.get("PREDICT_SKIP_PERCENTAGE", 0.9)  # Info: Percentage of the data to skip, from START_INDEX to STOP_INDEX
 INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
 
 # Read Weights Configurations
