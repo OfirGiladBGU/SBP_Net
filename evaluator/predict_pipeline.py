@@ -107,7 +107,7 @@ def postprocess_2d(data_3d_stem: str,
                 apply_dilation_scope=BINARY_DILATION
             )
 
-            data_2d_output[idx] = torch.Tensor(filtered_output / 255.0)
+            data_2d_output[idx] = torch.Tensor(filtered_output / 255.0).to(data_2d_output.device)
 
     return data_2d_input, data_2d_output
 
