@@ -1065,7 +1065,7 @@ if __name__ == "__main__":
     # 2. Use the label to add a task for the model to predict the number of connected components
 
     parser = argparse.ArgumentParser(description='Main function to run the prediction pipeline')
-    parser.add_argument('--no-cuda', action='store_true', default=True,
+    parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA predicting')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='random seed (default: 1)')

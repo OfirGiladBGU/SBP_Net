@@ -252,7 +252,7 @@ class Trainer(object):
         self.args.index_data = False
         if use_weights is True:
             print("Loading Model Weights")
-            self.model.load_state_dict(torch.load(self.args.weights_filepath))
+            self.model.load_state_dict(state_dict=torch.load(f=self.args.weights_filepath, map_location=self.device))
 
         self.start_time = datetime.datetime.now()
         start_timestamp = self.start_time.strftime('%Y-%m-%d_%H-%M-%S')
@@ -312,7 +312,7 @@ class Trainer(object):
 
         # Load model weights
         if os.path.exists(self.args.weights_filepath):
-            self.model.load_state_dict(torch.load(self.args.weights_filepath))
+            self.model.load_state_dict(state_dict=torch.load(f=self.args.weights_filepath, map_location=self.device))
         self.model.eval()
 
         with torch.no_grad():
