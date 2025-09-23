@@ -338,8 +338,8 @@ def single_predict(args: argparse.Namespace,
                 raise ValueError(f"Mode '{args.mode}' is not supported!")
 
             # Predict 2D
+            data_2d_input = data_2d_input.to(args.device)
             if len(args.model_2d) > 0:
-                data_2d_input = data_2d_input.to(args.device)
                 data_2d_output = args.model_2d_class(data_2d_input)
 
                 # Handle additional tasks
@@ -407,8 +407,8 @@ def single_predict(args: argparse.Namespace,
                 raise ValueError(f"Mode '{args.mode}' is not supported!")
 
             # Predict 3D
+            data_3d_input = data_3d_input.to(args.device)
             if len(args.model_3d) > 0:
-                data_3d_input = data_3d_input.to(args.device)
                 data_3d_output = args.model_3d_class(data_3d_input)
             else:
                 data_3d_output = data_3d_input.clone()
