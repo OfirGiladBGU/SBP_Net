@@ -411,6 +411,8 @@ def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
     output_points = np.argwhere(output > 0)
     target_points = np.argwhere(target > 0)
 
+    cc = connected_components_3d(data_3d=output, connectivity_type=26)[1]
+
     cd = chamfer_distance(output_points, target_points)
     hd = hausdorff_distance(output_points, target_points)
 
@@ -464,6 +466,7 @@ def compute_3d_completion_metrics(output, target, mask, epsilon=1e-6):
         hdf_masked = hd_numerator / (hd_denominator + 1e-6)
 
     results = {
+        "Connected Components": cc,
         "Full CD": cd,
         "Full HD": hd,
         "Masked CD": cd_masked,
