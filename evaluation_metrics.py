@@ -64,8 +64,12 @@ def full_predict(data_3d_stem, data_type: DataType, log_data=None, data_3d_folde
         # Skip non relevant rows
         if data_3d_stem != str(row[col_0]).rsplit("_", maxsplit=1)[0]:
             continue
-
-        data_3d_cube_filepath = list(pathlib.Path(data_3d_folder).glob(f"{row[col_0]}.*"))[0]
+        
+        if args.data_3d_ext is None:
+            # Might be slower if many files in folder
+            data_3d_cube_filepath = list(pathlib.Path(data_3d_folder).glob(f"{row[col_0]}.*"))[0]
+        else:
+            data_3d_cube_filepath = pathlib.Path(data_3d_folder).joinpath(f"{row[col_0]}{args.data_3d_ext}")
         data_3d_cube_filepaths.append(data_3d_cube_filepath)
 
     # START #
@@ -686,15 +690,26 @@ def calculate_3d_custom_metrics(data_3d_stem, source_data_3d_folder=None, compon
         # input_folder = EVALS
     else:
         input_folder = source_data_3d_folder
-    input_filepath = list(pathlib.Path(input_folder).glob(f"{data_3d_stem}*.*"))[0]
+
+    # Input
+    if args.data_3d_ext is None:
+        input_filepath = list(pathlib.Path(input_folder).glob(f"{data_3d_stem}*.*"))[0]
+    else:
+        input_filepath = pathlib.Path(input_folder).joinpath(f"{data_3d_stem}*{args.data_3d_ext}")
 
     # Output
     output_folder = MERGE_PIPELINE_RESULTS_PATH
-    output_filepath = list(pathlib.Path(output_folder).glob(f"{data_3d_stem}*.*"))[0]
+    if args.data_3d_ext is None:
+        output_filepath = list(pathlib.Path(output_folder).glob(f"{data_3d_stem}*.*"))[0]
+    else:
+        output_filepath = pathlib.Path(output_folder).joinpath(f"{data_3d_stem}*{args.data_3d_ext}")
 
     # Ground Truth
     target_folder = LABELS
-    target_filepath = list(pathlib.Path(target_folder).glob(f"{data_3d_stem}*.*"))[0]
+    if args.data_3d_ext is None:
+        target_filepath = list(pathlib.Path(target_folder).glob(f"{data_3d_stem}*.*"))[0]
+    else:
+        target_filepath = pathlib.Path(target_folder).joinpath(f"{data_3d_stem}*{args.data_3d_ext}")
 
     #############
     # Load Data #
@@ -1122,7 +1137,10 @@ if __name__ == "__main__":
                         help='True - When the input has no outliers (Train Data), False - When the input has outliers (Eval Data)')
     parser.add_argument('--apply-fusion-fix', default=False,
                         help='Enable fusion fix on output step (usually needed for surface reconstruction methods)')
-    
+
+    parser.add_argument('--data-3d-ext', default=None,
+                        help='File extension for 3D data files (e.g. ".nii.gz")')
+
     args = parser.parse_args()
     args.mode = "offline"  # Metrics can only be run in offline mode
 
@@ -1152,6 +1170,7 @@ if __name__ == "__main__":
     args.run_full_predict = True
     args.run_full_merge = True
     args.compare_crops_mode = False
+    args.data_3d_ext = ".nii.gz"
 
 
     # SOTA DeepCA config #
