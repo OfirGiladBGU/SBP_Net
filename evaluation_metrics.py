@@ -683,7 +683,7 @@ def calculate_3d_custom_metrics(data_3d_stem, source_data_3d_folder=None, compon
     :return:
     """
 
-    # Input
+    # Input folder
     if source_data_3d_folder is None:
         # input_folder = PREDS
         input_folder = PREDS_FIXED
