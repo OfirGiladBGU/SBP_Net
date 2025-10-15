@@ -92,5 +92,5 @@ folders = [
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\MESH',
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\PCD'
 ]
-output_image = compose_image(folders, target_size=(500, 500), crop_window=(0, 230, 150, 380))
+output_image = compose_image(folders, target_size=(2000, 2000), crop_window=(0, 1025, 500, 1525))
 output_image.save("sota_zoom.png")
