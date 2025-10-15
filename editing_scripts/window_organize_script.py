@@ -7,11 +7,11 @@ def load_and_sort_images(folder):
 
 
 def group_by_name(images):
-    groups = {}
-    for fname, path in images:
-        base = fname.rsplit('_p', 1)[0]
-        groups.setdefault(base, []).append((fname, path))
-    # groups = {'all': list(images)}
+    # groups = {}
+    # for fname, path in images:
+    #     base = fname.rsplit('_p', 1)[0]
+    #     groups.setdefault(base, []).append((fname, path))
+    groups = {'all': list(images)}
     return groups
 
 
@@ -92,5 +92,5 @@ folders = [
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\MESH',
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\PCD'
 ]
-output_image = compose_image(folders, target_size=(500, 500), crop_window=(10, 10, 250, 250))
-output_image.save("output_collage.png")
+output_image = compose_image(folders, target_size=(500, 500), crop_window=(0, 230, 150, 380))
+output_image.save("sota_zoom.png")
