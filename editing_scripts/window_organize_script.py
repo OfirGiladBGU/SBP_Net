@@ -91,7 +91,6 @@ folders = [
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\PARSE',
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\MESH',
     r'E:\AllProjects\PycharmProjects\TreesAutoEncoder\ORDERED\PCD'
-
 ]
 output_image = compose_image(folders, target_size=(500, 500), crop_window=(10, 10, 250, 250))
 output_image.save("output_collage.png")
