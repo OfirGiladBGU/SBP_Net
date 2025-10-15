@@ -11,6 +11,7 @@ def group_by_name(images):
     for fname, path in images:
         base = fname.rsplit('_p', 1)[0]
         groups.setdefault(base, []).append((fname, path))
+    # groups = {'all': list(images)}
     return groups
 
 
