@@ -62,7 +62,7 @@ def offline_preprocess_3d(data_3d_filepath: str,
 
     # Use 2D flow results
     else:
-        data_2d_output = data_2d_output.numpy()
+        data_2d_output = data_2d_output.cpu().numpy()
 
         # TODO: Threshold
         if apply_threshold_2d:

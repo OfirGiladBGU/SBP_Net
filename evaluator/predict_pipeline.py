@@ -10,6 +10,9 @@ from scipy.ndimage import convolve
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
 import datetime
+import sys
+root_path = str(pathlib.Path(__file__).absolute().parent.parent)
+sys.path.append(root_path)
 
 from configs.configs_parser import *
 from datasets.dataset_utils import *
@@ -68,8 +71,8 @@ def postprocess_2d(data_3d_stem: str,
 
     if apply_noise_filter_2d is True:
         for idx in range(len(IMAGES_6_VIEWS)):
-            data_2d_input_idx = np.round(data_2d_input[idx].numpy() * 255).astype(np.uint8)
-            data_2d_output_idx = np.round(data_2d_output[idx].numpy() * 255).astype(np.uint8)
+            data_2d_input_idx = np.round(data_2d_input[idx].cpu().numpy() * 255).astype(np.uint8)
+            data_2d_output_idx = np.round(data_2d_output[idx].cpu().numpy() * 255).astype(np.uint8)
 
             # if TASK_TYPE == TaskType.SINGLE_COMPONENT:
             #     filtered_output = components_continuity_2d_single_component(
@@ -104,14 +107,14 @@ def postprocess_2d(data_3d_stem: str,
                 apply_dilation_scope=BINARY_DILATION
             )
 
-            data_2d_output[idx] = torch.Tensor(filtered_output / 255.0)
+            data_2d_output[idx] = torch.Tensor(filtered_output / 255.0).to(data_2d_output.device)
 
     return data_2d_input, data_2d_output
 
 
 def debug_2d(data_3d_stem: str, data_2d_input: torch.Tensor, data_2d_output: torch.Tensor):
-    data_2d_input_copy = data_2d_input.clone().numpy()
-    data_2d_output_copy = data_2d_output.clone().numpy()
+    data_2d_input_copy = data_2d_input.clone().cpu().numpy()
+    data_2d_output_copy = data_2d_output.clone().cpu().numpy()
 
     columns = 6
     rows = 2
@@ -145,7 +148,7 @@ def debug_2d(data_3d_stem: str, data_2d_input: torch.Tensor, data_2d_output: tor
 
 
 def export_output_2d(data_3d_stem, data_3d_filepath, data_2d_output: torch.Tensor):
-    numpy_data_2d_output = data_2d_output.clone().numpy()
+    numpy_data_2d_output = data_2d_output.clone().cpu().numpy()
 
     source_data_filepath = "dummy.png"
     save_path = os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_2d")
@@ -201,7 +204,7 @@ def postprocess_3d(data_3d_input: torch.Tensor,
 
 
 def debug_3d(data_3d_stem, data_3d_filepath, data_3d_input: torch.Tensor):
-    data_3d_input = data_3d_input.clone().numpy()
+    data_3d_input = data_3d_input.clone().cpu().numpy()
 
     save_path = os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_3d_debug")
     save_filename = os.path.join(save_path, f"{data_3d_stem}_input")
@@ -214,7 +217,7 @@ def debug_3d(data_3d_stem, data_3d_filepath, data_3d_input: torch.Tensor):
 
 
 def export_output_3d(data_3d_stem, data_3d_filepath, data_3d_output: torch.Tensor):
-    numpy_data_3d_output = data_3d_output.numpy()
+    numpy_data_3d_output = data_3d_output.cpu().numpy()
 
     save_path = os.path.join(PREDICT_PIPELINE_RESULTS_PATH, "output_3d")
     save_filename = os.path.join(save_path, f"{data_3d_stem}_output")
@@ -242,7 +245,7 @@ def init_pipeline_models(args: argparse.Namespace):
         else:
             weights_name = f"Network_{DATASET_OUTPUT_FOLDER}_{model_2d.model_name}.pth"
             model_2d_weights_filepath = os.path.join(ROOT_PATH, "weights", weights_name)
-        model_2d.load_state_dict(torch.load(model_2d_weights_filepath))
+        model_2d.load_state_dict(state_dict=torch.load(f=model_2d_weights_filepath, map_location=args.device))
         model_2d.eval()
         model_2d.to(args.device)
         args.model_2d_class = model_2d
@@ -259,7 +262,7 @@ def init_pipeline_models(args: argparse.Namespace):
         else:
             weights_name = f"Network_{DATASET_OUTPUT_FOLDER}_{model_3d.model_name}.pth"
             model_3d_weights_filepath = os.path.join(ROOT_PATH, "weights", weights_name)
-        model_3d.load_state_dict(torch.load(model_3d_weights_filepath))
+        model_3d.load_state_dict(state_dict=torch.load(f=model_3d_weights_filepath, map_location=args.device))
         model_3d.eval()
         model_3d.to(args.device)
         args.model_3d_class = model_3d
@@ -335,6 +338,7 @@ def single_predict(args: argparse.Namespace,
                 raise ValueError(f"Mode '{args.mode}' is not supported!")
 
             # Predict 2D
+            data_2d_input = data_2d_input.to(args.device)
             if len(args.model_2d) > 0:
                 data_2d_output = args.model_2d_class(data_2d_input)
 
@@ -403,6 +407,7 @@ def single_predict(args: argparse.Namespace,
                 raise ValueError(f"Mode '{args.mode}' is not supported!")
 
             # Predict 3D
+            data_3d_input = data_3d_input.to(args.device)
             if len(args.model_3d) > 0:
                 data_3d_output = args.model_3d_class(data_3d_input)
             else:

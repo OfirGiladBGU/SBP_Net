@@ -1,15 +1,18 @@
 DATASET_INPUT_FOLDER: "parse2022"
-DATASET_OUTPUT_FOLDER: "parse2022_LC_32_50_ours"
+DATASET_OUTPUT_FOLDER: "parse2022_LC_32_50_ours_eval"
 DATA_CROP_STRIDE: 16
 DATA_CROP_SIZE: 32
-DENSITY_LOWER_THRESHOLD: 0.1
+DENSITY_LOWER_THRESHOLD: 0.01
 DENSITY_UPPER_THRESHOLD: 0.9
 TASK_TYPE: "LOCAL_CONNECTIVITY"
-START_INDEX: 1
+START_INDEX: 46
 STOP_INDEX: 50
 
-WEIGHTS_2D_PATH: weights/Network_parse2022_LC_32_50_ours_ae_2d_to_2d.pth
-# NOTE: Train for 10 epochs only!
+WEIGHTS_2D_PATH: "weights/Network_parse2022_LC_32_50_ours_ae_2d_to_2d.pth"
+PREDICT_SKIP_PERCENTAGE: 0.0  # 0.0 means no skipping, 0.9 means skip 90% of the data
+
+APPLY_CONTINUITY_FIX_3D: False
+APPLY_CONTINUITY_FIX_2D: False
 
 # CONFIG:
 # APPLY_LOG_FILTER = True  # Helpful to reject projections with too dense or too sparse pixels from the training loader
