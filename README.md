@@ -18,7 +18,7 @@ See the following file for full guidance: [manual_requirements.txt](manual_requi
 ### How to set up a dataset (Example for Parse2022):
 
 In case that you have a dataset of 3D input files with holes and 3D ground truth files. \
-(Example: for [Parse2022](https://grand-challenge.org/forums/forum/parse2022-623/) data, we took SOTA model results 
+(Example: for [Parse2022](https://parse2022.grand-challenge.org/) data, we took SOTA model results 
 (i.e. [MEDPSeg](https://github.com/MICLab-Unicamp/medpseg)) as our input data, along with `Parse2022` labels as our ground truth data).
 
 1. Put the `parse2022` dataset on the path: `./data/parse2022` with the `labels` and `preds` data on the sub folders:
