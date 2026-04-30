@@ -4,7 +4,7 @@
 ## Description:
 
 The repository contains all the scripts that were used to get the results available on the paper: \
-`SBDP: Learning Thin Structure Reconstruction from Sliding-Box Depth Projections`
+`SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections` - IEEE ICIP 2026
 
 
 ## Requirements:
