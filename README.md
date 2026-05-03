@@ -7,7 +7,7 @@ This is the official PyTorch implementation for the paper **"SBP-Net: Learning T
 SBP-Net is designed for the localized completion of highly imperfect, thin 3D structures (such as vascular networks and industrial pipelines). By utilizing a sliding-box traversal and 2D orthographic depth projections, our method avoids the complexities of global 3D reconstruction, effectively detecting and repairing topological gaps.
 
 <p align="center">
-   <img src="assets/combined_3d_results_new.png" alt="SBP-Net 3D teaser" width="100%" />
+   <img src="/assets/combined_3d_results_new.png" alt="SBP-Net 3D teaser" />
    <em>Representative 3D reconstruction results showing the SBP-Net output on thin structures from medical CT scans and industrial point clouds.</em>
 </p>
 
@@ -18,7 +18,7 @@ SBP-Net is designed for the localized completion of highly imperfect, thin 3D st
 The SBP-Net pipeline operates by localizing the reconstruction task. It extracts 3D sub-volumes, projects them into 6 orthogonal 2D depth views, repairs the structures using an Attention U-Net, and perfectly fuses the fixed geometry back into the global 3D space using a logical OR operation.
 
 <p align="center">
-   <img src="assets/Flow_new.png" alt="SBP-Net method overview" width="100%" />
+   <img src="/assets/Flow_new.png" alt="SBP-Net method overview" />
 </p>
 
 ---
@@ -63,7 +63,7 @@ If you are generating synthetic holes in complete structures (e.g., using [PipeF
 - For Point Clouds: `python datasets_forge/generate_3d_preds_from_pcd.py`
 
 <p align="center">
-   <img src="assets/combined_2d_results_new.png" alt="SBP-Net 2D teaser" width="100%" />
+   <img src="/assets/combined_2d_results_new.png" alt="SBP-Net 2D teaser" />
    <em>Examples of 2D orthographic projections generated from the sliding-box crops.</em>
 </p>
 
