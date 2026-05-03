@@ -1326,12 +1326,15 @@ def main():
     # TODO: DEBUG
     # create_dataset_depth_2d_projections(data_options=data_options)
 
+    # TODO: Requried for training
     create_2d_projections_and_3d_cubes_for_training()
+
+    # TODO: Required for evaluation
     # create_2d_projections_and_3d_cubes_for_evaluation(include_labels=True)
 
 
 if __name__ == "__main__":
-    # TODO: Add classifier model to find cubes with holes better - model 2D to 1D
+    # TODO: Add classifier model to find cubes with holes better - model 2D to 1D - Disabled
 
     # TODO:
     # 1. Make sure DATASET_FOLDER folder is present in the root directory
