@@ -1,6 +1,8 @@
 # SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections
+<!--
 [![Conference](https://img.shields.io/badge/IEEE-ICIP_2026-blue.svg)](https://2026.ieeeicip.org/) 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+-->
 
 This is the official PyTorch implementation for the paper **"SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections"** (IEEE ICIP 2026).
 
@@ -127,10 +129,5 @@ This code builds upon and compares against several excellent works in the 3D vis
 
 If you find this code or our methodology useful in your research, please consider citing our paper:
 ```bibtex
-@inproceedings{gilad2026sbpnet,
-  title={SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections},
-  author={Gilad, Ofir and Sharf, Andrei},
-  booktitle={IEEE International Conference on Image Processing (ICIP)},
-  year={2026}
-}
+TODO
 ```
