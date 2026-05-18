@@ -15,6 +15,52 @@ from evaluator.predict_pipeline import init_pipeline_models, single_predict, ful
 from datasets_visualize.dataset_visulalization import interactive_plot_2d, interactive_plot_3d
 
 
+################
+# Custom Edit: #
+################
+
+# debug configs #
+# MODEL_1D = "vit_2d_to_1d"
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_2D = "ae_6_2d_to_6_2d"
+# INPUT_SIZE_MODEL_2D = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_2D = "ae_2d_to_2d"
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_3D = "ae_3d_to_3d"
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+
+
+# Paper config #
+MODEL_1D = ""
+INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+MODEL_2D = "ae_2d_to_2d"
+INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+MODEL_3D = ""
+INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+RUN_2D_FLOW = True
+RUN_3D_FLOW = True
+EXPORT_2D = False
+EXPORT_3D = True
+PARALLEL_PREDICT = True
+
+
+# SOTA Unet3D config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = "unet3d"
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = False  # NOTE: Disable parallel predict as the gpu memory is not enough for parallel 3D predict 
+
+
 ##################
 # Core Functions #
 ##################
@@ -300,7 +346,7 @@ def main():
     # TODO: Update as required
     input_folder = EVALS
 
-    # TODO: Same as before
+    # TODO: Same as offline pipeline
     init_pipeline_models(args=args)
 
     # TODO: Create online full predict function
@@ -315,29 +361,29 @@ if __name__ == "__main__":
                         help='random seed (default: 1)')
     # parser.add_argument('--weights-filepath', type=str, default='./weights/Network.pth', metavar='N',
     #                     help='Which weights to use')  # Moved to YAML config
-    parser.add_argument('--model-1d', type=str, default="", metavar='N',
+    parser.add_argument('--model-1d', type=str, default=MODEL_1D, metavar='N',
                         help='Which 1D model to use')
-    parser.add_argument('--input-size-model-1d', type=tuple, default=(1, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-1d', type=tuple, default=INPUT_SIZE_MODEL_1D, metavar='N',
                         help='Which input size the 1D model should to use')
-    parser.add_argument('--model-2d', type=str, default="", metavar='N',
+    parser.add_argument('--model-2d', type=str, default=MODEL_2D, metavar='N',
                         help='Which 2D model to use')
-    parser.add_argument('--input-size-model-2d', type=tuple, default=(1, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-2d', type=tuple, default=INPUT_SIZE_MODEL_2D, metavar='N',
                         help='Which input size the 2D model should to use')
-    parser.add_argument('--model-3d', type=str, default="", metavar='N',
+    parser.add_argument('--model-3d', type=str, default=MODEL_3D, metavar='N',
                         help='Which 3D model to use')
-    parser.add_argument('--input-size-model-3d', type=tuple, default=(1, 32, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-3d', type=tuple, default=INPUT_SIZE_MODEL_3D, metavar='N',
                         help='Which input size the 3D model should to use')
     
     # Runtime flags
-    parser.add_argument('--run-2d-flow', action='store_true', default=True,
+    parser.add_argument('--run-2d-flow', action='store_true', default=RUN_2D_FLOW,
                         help='Run the 2D flow')
-    parser.add_argument('--run-3d-flow', action='store_true', default=True,
+    parser.add_argument('--run-3d-flow', action='store_true', default=RUN_3D_FLOW,
                         help='Run the 3D flow')
-    parser.add_argument('--export-2d', default=False,
+    parser.add_argument('--export-2d', default=EXPORT_2D,
                         help='Export the 2D predictions')
-    parser.add_argument('--export-3d', action='store_true', default=True,
+    parser.add_argument('--export-3d', action='store_true', default=EXPORT_3D,
                         help='Export the 3D predictions')
-    parser.add_argument('--parallel-predict', action='store_true', default=True,
+    parser.add_argument('--parallel-predict', action='store_true', default=PARALLEL_PREDICT,
                         help='Run the prediction in parallel')
 
     args = parser.parse_args()
@@ -346,31 +392,5 @@ if __name__ == "__main__":
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     args.device = torch.device("cuda" if args.cuda else "cpu")
     torch.manual_seed(args.seed)
-
-    # Custom Edit:
-
-    # args.model_1d = "vit_2d_to_1d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    # args.model_2d = "ae_6_2d_to_6_2d"
-    # args.input_size_model_2d = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    args.model_2d = "ae_2d_to_2d"
-    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    # args.model_3d = "ae_3d_to_3d"
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-
-
-    # Paper config #
-    # args.model_2d = "ae_2d_to_2d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-
-    # # SOTA Unet3D config #
-    # args.model_3d = "unet3d"
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
 
     main()

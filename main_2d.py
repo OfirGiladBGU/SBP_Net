@@ -4,23 +4,53 @@ from configs.configs_parser import ModelType
 from main_base import run_main
 
 
+################
+# Custom Edit: #
+################
+
+# debug configs #
+# MODEL = 'ae_2d_to_2d'
+# BATCH_SIZE = 128
+# # DATASET = 'MNIST'  # (Sanity Check)
+# # DATASET = 'CIFAR10'  # (Sanity Check)
+# # DATASET = 'Trees2DV1S'  # (Sanity Check)
+# DATASET = 'Trees2DV1'
+# EPOCHS = 20
+
+# MODEL = 'ae_6_2d_to_6_2d'
+# BATCH_SIZE = 128
+# DATASET = 'Trees2DV2'
+# EPOCHS = 20
+
+
+# Paper config #
+MODEL = 'ae_2d_to_2d'
+BATCH_SIZE = 128
+DATASET = 'Trees2DV1'
+EPOCHS = 20
+
+
 if __name__ == "__main__":
+    # NOTE: SELF NOTES:
+
+    # TODO: In pipes dataset - since the pipes are circular, holes in the pipes are not necessarily holes in the image (because the other side of the pipe might be visible)
+
     parser = argparse.ArgumentParser(description='Main function to run 2D models')
-    parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=BATCH_SIZE, metavar='N',
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
-                        help='number of epochs to train (default: 10)')
+    parser.add_argument('--epochs', type=int, default=EPOCHS, metavar='N',
+                        help='number of epochs to train (default: 20)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
                         help='random seed (default: 42)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--dataset', type=str, default='MNIST', metavar='N',
+    parser.add_argument('--dataset', type=str, default=DATASET, metavar='N',
                         help='Which dataset to use')
     # parser.add_argument('--weights-filepath', type=str, default='./weights/Network.pth', metavar='N',
     #                     help='Which weights to use')  # Moved to YAML config
-    parser.add_argument('--model', type=str, default='ae_2d_to_2d', metavar='N',
+    parser.add_argument('--model', type=str, default=MODEL, metavar='N',
                         help='Which model to use')
     parser.add_argument('--wandb', type=bool, default=True,
                         help='Connect to Weights & Biases')
@@ -34,33 +64,4 @@ if __name__ == "__main__":
                         help='Use weights for training')
 
     args = parser.parse_args()
-
-    # Custom Edit:
-
-    # args.model = 'ae_2d_to_2d'
-    # args.dataset = 'MNIST'
-    # args.dataset = 'CIFAR10'
-    # args.dataset = 'Trees2DV1S'
-    # args.dataset = 'Trees2DV1'
-    # args.epochs = 20
-
-    # args.model = 'ae_6_2d_to_6_2d'
-    # args.dataset = 'Trees2DV2'
-    # args.epochs = 20
-
-
-    # Paper config #
-    args.model = 'ae_2d_to_2d'
-    args.dataset = 'Trees2DV1'
-    args.epochs = 20
-
     run_main(args=args, model_type=ModelType.Model_2D)
-
-    # Notes to self:
-
-    # TODO: check option that the original input is kept and only the holes are predicted and merged - V
-    # TODO: filter noise
-    # TODO: check option to add confidence/classification head for the model to threshold the pixels - V
-    # TODO: remove punishment on input white area
-
-    # TODO: In pipes dataset - since the pipes are circular, holes in the pipes are not necessarily holes in the image (because the other side of the pipe might be visible)

@@ -602,6 +602,7 @@ def full_merge(data_3d_stem, data_type: DataType, log_data=None, source_data_3d_
     # Pipeline Predicts
     predict_folder = PREDICT_PIPELINE_RESULTS_PATH
     predict_filepaths = sorted(pathlib.Path(os.path.join(predict_folder, "output_3d")).glob(f"{data_3d_stem}_*_output.*"))
+    # predict_filepaths = sorted(list(pathlib.Path(PREDS_FIXED_3D).glob(f"{data_3d_stem}*.*")))
 
     # Pipeline Merge output path
     output_folder = MERGE_PIPELINE_RESULTS_PATH

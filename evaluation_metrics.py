@@ -18,6 +18,203 @@ from evaluator.predict_pipeline import init_pipeline_models, single_predict, ful
 from datasets_visualize.dataset_visulalization import interactive_plot_2d, interactive_plot_3d
 
 
+################
+# Custom Edit: #
+################
+
+# debug configs #
+# MODEL_1D = "vit_2d_to_1d"
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_2D = "ae_6_2d_to_6_2d"
+# INPUT_SIZE_MODEL_2D = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_2D = "ae_2d_to_2d"
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+
+# MODEL_3D = "ae_3d_to_3d"
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+
+
+# Paper config #
+MODEL_1D = ""
+INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+MODEL_2D = "ae_2d_to_2d"
+INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+MODEL_3D = ""
+INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+RUN_2D_FLOW = True
+RUN_3D_FLOW = True
+EXPORT_2D = False
+EXPORT_3D = True
+PARALLEL_PREDICT = True
+TEST_2D_METRICS = True
+TEST_2D_CUSTOM_METRICS = False
+TEST_3D_METRICS = True
+TEST_3D_CUSTOM_METRICS = False
+USE_LOG_DATA = True
+RUN_FULL_PREDICT = True
+RUN_FULL_MERGE = True
+COMPARE_CROPS_MODE = False
+APPLY_ABS = True
+APPLY_FUSION_FIX = False
+DATA_3D_EXT = ".nii.gz"
+
+
+# SOTA DeepCA config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = ""  # Trained from DeepCA repo
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = True
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = False  # NOTE: Disable log data usage as the 2D model is not used
+# RUN_FULL_PREDICT = False
+# RUN_FULL_MERGE = False  # NOTE: Disable full merge as the 2D model is not used
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = True
+# DATA_3D_EXT = ".nii.gz"
+
+
+# SOTA Convolutional Occupancy Networks config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = ""  # Trained from Convolutional Occupancy Network repo
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = True
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = False  # NOTE: Disable log data usage as the 2D model is not used
+# RUN_FULL_PREDICT = False
+# RUN_FULL_MERGE = False  # NOTE: Disable full merge as the 2D model is not used
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = True
+# DATA_3D_EXT = ".nii.gz"
+# NOTE: APPLY: Patch for Parse2022 (MEDPSeg save format)
+
+
+# SOTA OReX config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = ""  # Trained from OReX repo
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = True
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = False  # NOTE: Disable log data usage as the 2D model is not used
+# RUN_FULL_PREDICT = False
+# RUN_FULL_MERGE = False  # NOTE: Disable full merge as the 2D model is not used
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = True
+# DATA_3D_EXT = ".nii.gz"
+# NOTE: APPLY: Patch for Parse2022 (MEDPSeg save format)
+
+
+# SOTA Unet3D config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = "unet3d"
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = False  # NOTE: Disable parallel predict as the gpu memory is not enough for parallel 3D predict
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = True
+# RUN_FULL_PREDICT = True
+# RUN_FULL_MERGE = True
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = False  # NOTE: Perform fusion in full merge step
+# DATA_3D_EXT = ".nii.gz"
+
+
+# SOTA MBD config - Deprecated #
+# Make sure: RUN_FULL_PREDICT = False and enable input merging
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = ""  # Trained from MBD repo
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = True
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = True
+# RUN_FULL_PREDICT = False
+# RUN_FULL_MERGE = True
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = False  # NOTE: Perform fusion in full merge step
+# DATA_3D_EXT = ".nii.gz"
+# NOTE: APPLY: Patch for Parse2022 (MEDPSeg save format)
+
+
+# SOTA 3D RecGAN config #
+# MODEL_1D = ""
+# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_2D = ""
+# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
+# MODEL_3D = "recgan_3d"
+# INPUT_SIZE_MODEL_3D = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
+# RUN_2D_FLOW = False  # NOTE: Disabled for 3D model
+# RUN_3D_FLOW = True
+# EXPORT_2D = False
+# EXPORT_3D = True
+# PARALLEL_PREDICT = True
+# TEST_2D_METRICS = False  # NOTE: Disable 2D metrics as the 2D model is not used
+# TEST_2D_CUSTOM_METRICS = False
+# TEST_3D_METRICS = True
+# TEST_3D_CUSTOM_METRICS = False
+# USE_LOG_DATA = True
+# RUN_FULL_PREDICT = True
+# RUN_FULL_MERGE = True
+# COMPARE_CROPS_MODE = False
+# APPLY_ABS = True
+# APPLY_FUSION_FIX = False  # NOTE: Perform fusion in full merge step
+# DATA_3D_EXT = ".nii.gz"
+
+
 ##################
 # Core Functions #
 ##################
@@ -1066,79 +1263,76 @@ def main():
 
 
 if __name__ == "__main__":
-    # RELEVANT TODOs
-    # TODO: Add script for full folder predict
-
-    # TODO: test loss functions to the 2D model
+    # NOTE: FUTURE TODOs:
 
     # TODO: try to improve cleanup of 2D models results for the 3D fusion - TBD
     # TODO: support the classification models - TBD
     # TODO: add 45 degrees projections - Removed
     # TODO: create csv log per 3D object to improve search (Maybe in the future) - Removed
+    # TODO: Support different tasks - Disabled
 
-    # TODO: Support different tasks
+    # NOTE: another note for next stage:
 
-    # TODO: another note for next stage:
-    # 1. Add label on number of connected components inside a 3D volume
-    # 2. Use the label to add a task for the model to predict the number of connected components
+    # TODO: Add label on number of connected components inside a 3D volume
+    # TODO: Use the label to add a task for the model to predict the number of connected components
 
     parser = argparse.ArgumentParser(description='Main function to run the prediction pipeline')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA predicting')
     parser.add_argument('--seed', type=int, default=42, metavar='S',
-                        help='random seed (default: 1)')
+                        help='random seed (default: 42)')
     # parser.add_argument('--weights-filepath', type=str, default='./weights/Network.pth', metavar='N',
     #                     help='Which weights to use')  # Moved to YAML config
-    parser.add_argument('--model-1d', type=str, default="", metavar='N',
+    parser.add_argument('--model-1d', type=str, default=MODEL_1D, metavar='N',
                         help='Which 1D model to use')
-    parser.add_argument('--input-size-model-1d', type=tuple, default=(1, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-1d', type=tuple, default=INPUT_SIZE_MODEL_1D, metavar='N',
                         help='Which input size the 2D model should to use')
-    parser.add_argument('--model-2d', type=str, default="", metavar='N',
+    parser.add_argument('--model-2d', type=str, default=MODEL_2D, metavar='N',
                         help='Which 2D model to use')
-    parser.add_argument('--input-size-model-2d', type=tuple, default=(1, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-2d', type=tuple, default=INPUT_SIZE_MODEL_2D, metavar='N',
                         help='Which input size the 2D model should to use')
-    parser.add_argument('--model-3d', type=str, default="", metavar='N',
+    parser.add_argument('--model-3d', type=str, default=MODEL_3D, metavar='N',
                         help='Which 3D model to use')
-    parser.add_argument('--input-size-model-3d', type=tuple, default=(1, 32, 32, 32), metavar='N',
+    parser.add_argument('--input-size-model-3d', type=tuple, default=INPUT_SIZE_MODEL_3D, metavar='N',
                         help='Which input size the 3D model should to use')
 
     # Runtime flags
-    parser.add_argument('--run-2d-flow', action='store_true', default=True,
+    parser.add_argument('--run-2d-flow', action='store_true', default=RUN_2D_FLOW,
                         help='Run the 2D flow')
-    parser.add_argument('--run-3d-flow', action='store_true', default=True,
+    parser.add_argument('--run-3d-flow', action='store_true', default=RUN_3D_FLOW,
                         help='Run the 3D flow')
-    parser.add_argument('--export-2d', default=False,
+    parser.add_argument('--export-2d', default=EXPORT_2D,
                         help='Export the 2D predictions')
-    parser.add_argument('--export-3d', action='store_true', default=True,
+    parser.add_argument('--export-3d', action='store_true', default=EXPORT_3D,
                         help='Export the 3D predictions')
-    parser.add_argument('--parallel-predict', action='store_true', default=True,
+    parser.add_argument('--parallel-predict', action='store_true', default=PARALLEL_PREDICT,
                         help='Run the prediction in parallel')
 
     # Metrics flags
-    parser.add_argument('--test-2d-metrics', action='store_true', default=True,
+    parser.add_argument('--test-2d-metrics', action='store_true', default=TEST_2D_METRICS,
                         help='Run the 2D metrics')
-    parser.add_argument('--test-2d-custom-metrics', default=False,
+    parser.add_argument('--test-2d-custom-metrics', default=TEST_2D_CUSTOM_METRICS,
                         help='Run the 2D custom metrics')
-    parser.add_argument('--test-3d-metrics', action='store_true', default=True,
+    parser.add_argument('--test-3d-metrics', action='store_true', default=TEST_3D_METRICS,
                         help='Run the 3D metrics')
-    parser.add_argument('--test-3d-custom-metrics', default=False,
+    parser.add_argument('--test-3d-custom-metrics', default=TEST_3D_CUSTOM_METRICS,
                         help='Run the 3D custom metrics')
     
     # Metrics Data flags
-    parser.add_argument('--use-log-data', action='store_true', default=True,
+    parser.add_argument('--use-log-data', action='store_true', default=USE_LOG_DATA,
                         help='Use CSV log data to get the list of 3D objects to evaluate')
-    parser.add_argument('--run-full-predict', action='store_true', default=True,
+    parser.add_argument('--run-full-predict', action='store_true', default=RUN_FULL_PREDICT,
                         help='Run the full prediction pipeline')
-    parser.add_argument('--run-full-merge', action='store_true', default=True,
+    parser.add_argument('--run-full-merge', action='store_true', default=RUN_FULL_MERGE,
                         help='Run the full merge pipeline')
-    parser.add_argument('--compare-crops-mode', default=True,
+    parser.add_argument('--compare-crops-mode', default=COMPARE_CROPS_MODE,
                         help='Enable compare crops mode of the 3D results with the GT in DATA_CROPS_PATH (otherwise the GT in DATA_PATH will be compared)')
-    parser.add_argument('--apply-abs', action='store_true', default=True,
+    parser.add_argument('--apply-abs', action='store_true', default=APPLY_ABS,
                         help='True - When the input has no outliers (Train Data), False - When the input has outliers (Eval Data)')
-    parser.add_argument('--apply-fusion-fix', default=False,
+    parser.add_argument('--apply-fusion-fix', default=APPLY_FUSION_FIX,
                         help='Enable fusion fix on output step (usually needed for surface reconstruction methods)')
 
-    parser.add_argument('--data-3d-ext', default=None,
+    parser.add_argument('--data-3d-ext', default=DATA_3D_EXT,
                         help='File extension for 3D data files (e.g. ".nii.gz")')
 
     args = parser.parse_args()
@@ -1147,106 +1341,5 @@ if __name__ == "__main__":
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     args.device = torch.device("cuda" if args.cuda else "cpu")
     torch.manual_seed(args.seed)
-
-    # Custom Edit:
-
-    # args.model_1d = "vit_2d_to_1d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    # args.model_2d = "ae_6_2d_to_6_2d"
-    # args.input_size_model_2d = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    # args.model_2d = "ae_2d_to_2d"
-    # args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
-    # args.model_3d = "ae_3d_to_3d"
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-
-
-    # Paper config #
-    args.model_2d = "ae_2d_to_2d"
-    args.input_size_model_2d = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-    args.use_log_data = True 
-    args.run_full_predict = True
-    args.run_full_merge = True
-    args.compare_crops_mode = False
-    args.data_3d_ext = ".nii.gz"
-
-
-    # SOTA DeepCA config #
-    # args.model_3d = ""  # Trained from DeepCA repo
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = False 
-    # args.run_full_predict = False
-    # args.run_full_merge = False
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True
-
-
-    # SOTA Convolutional Occupancy Networks config #
-    # args.model_3d = ""  # Trained from Convolutional Occupancy Network repo
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = False 
-    # args.run_full_predict = False
-    # args.run_full_merge = False
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True
-    # APPLY: Patch for Parse2022 (MEDPSeg save format)
-
-
-    # SOTA OReX config #
-    # args.model_3d = ""  # Trained from OReX repo
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = False 
-    # args.run_full_predict = False
-    # args.run_full_merge = False
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = True
-    # APPLY: Patch for Parse2022 (MEDPSeg save format)
-
-
-    # SOTA Unet3D config #
-    # args.model_3d = "unet3d"
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.parallel_predict = False  # Disable parallel predict as the gpu memory is not enough for parallel 3D predict
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = True 
-    # args.run_full_predict = True
-    # args.run_full_merge = True
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = False  # Perform fusion in full merge step
-
-
-    # SOTA MBD config #
-    # Make sure: run_full_predict = False and enable input merging
-    # args.model_3d = ""  # Trained from MBD repo
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = True 
-    # args.run_full_predict = False
-    # args.run_full_merge = True
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = False  # Perform fusion in full merge step
-    # APPLY: Patch for Parse2022 (MEDPSeg save format)
-
-
-    # SOTA 3D RecGAN config #
-    # args.model_3d = "recgan_3d"
-    # args.input_size_model_3d = (1, DATA_3D_SIZE[0], DATA_3D_SIZE[1], DATA_3D_SIZE[2])
-    # args.run_2d_flow = False
-    # args.test_2d_metrics = False  # Disable 2D metrics as the 2D model is not used
-    # args.use_log_data = True 
-    # args.run_full_predict = True
-    # args.run_full_merge = True
-    # args.compare_crops_mode = False
-    # args.apply_fusion_fix = False  # Perform fusion in full merge step
 
     main()
