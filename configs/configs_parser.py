@@ -20,7 +20,7 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "examples/PipeForge3DPCD_LC_48.yaml"
 
 
-# TODO: Use for Ex1:
+# TODO: Use for Ex1: (Used for paper results)
 
 # CONFIG_FILENAME = "experiment1/parse2022_LC_32_50.yaml"
 # CONFIG_FILENAME = "experiment1/PipeForge3DMesh_Best_LC_32.yaml"
@@ -37,14 +37,14 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "experiment2/parse2022_LC_64.yaml"
 
 
-# V2 - 50 samples
+# V2 - 50 samples (Used for paper results)
 
 # CONFIG_FILENAME = "experiment2/parse2022_LC_32_50.yaml"
 # CONFIG_FILENAME = "experiment2/parse2022_LC_48_50.yaml"
 # CONFIG_FILENAME = "experiment2/parse2022_LC_64_50.yaml"
 
 
-# TODO: Use for Ex3:
+# TODO: Use for Ex3: (Used for paper results)
 
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_Hole_125_LC_32.yaml"
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_Hole_250_LC_32.yaml"
@@ -53,7 +53,7 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_Hole_700_LC_32.yaml"
 
 
-# TODO: Use for Ex4:
+# TODO: Use for Ex4: (Used for paper results)
 
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_Base_LC_32.yaml"
 
@@ -63,7 +63,7 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "experiment3/PipeForge3DMesh_400_LC_32.yaml"
 
 
-# TODO: Use for Ex_Sota:
+# TODO: Use for Ex_Sota: (Used for paper results)
 
 # 1nd best result
 # CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours.yaml"

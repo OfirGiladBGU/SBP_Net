@@ -146,7 +146,7 @@ def single_plot_3d(data_3d_filepath, interactive_mode: bool = False, interactive
         (numpy_3d_data, _) = connected_components_3d(data_3d=numpy_3d_data)
 
     if interactive_mode is False:
-        save_path = os.path.join("TEST", "single_predict_3d")
+        save_path = os.path.join(VISUALIZATION_RESULTS_PATH, "single_predict_3d")
         save_filename = os.path.join(save_path, "result")
 
         matplotlib_plot_3d(data_3d=numpy_3d_data, save_filename=save_filename)
@@ -229,7 +229,7 @@ def single_plot_2d(data_2d_filepath, interactive_mode: bool = False):
     numpy_2d_data = cv2.imread(data_2d_filepath, cv2.IMREAD_GRAYSCALE)
 
     if interactive_mode is False:
-        save_path = os.path.join("TEST", "single_predict_2d")
+        save_path = os.path.join(VISUALIZATION_RESULTS_PATH, "single_predict_2d")
         save_filename = os.path.join(save_path, "result")
 
         matplotlib_plot_2d(data_2d_list=[numpy_2d_data], save_filename=save_filename)
@@ -275,7 +275,7 @@ def main():
     # Example 3D data
     # data_3d_filepath = os.path.join(LABELS_3D, "PA000078_11978.nii.gz")
     # data_3d_filepath = os.path.join(PREDS_FIXED_3D, "PA000078_11978.nii.gz")
-    data_3d_filepath = r"E:\AllProjects\PycharmProjects\TreesAutoEncoder\data_results\46_label.npy"
+    data_3d_filepath = r"data/PipeForge3DPCD_Best/evals/01.npy"
     single_plot_3d(data_3d_filepath=data_3d_filepath, interactive_mode=True, interactive_version=2)
 
 
