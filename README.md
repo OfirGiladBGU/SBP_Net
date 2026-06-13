@@ -42,6 +42,83 @@ Then follow the [manual_requirements.txt](manual_requirements.txt) instructions.
 
 ---
 
+## Quick Start
+
+Follow these steps to run our pre-trained model on the [PipeForge3D](https://github.com/OfirGiladBGU/PipeForge3D) dataset:
+
+### 1. Download Pre-trained Weights
+
+Access the model weights via our [Google Drive](https://drive.google.com/drive/folders/1byYa2RnqDiDiQevLBdsWS4xSF5643C_m?usp=drive_link). Navigate to the `Weights/Ex1` folder and download the checkpoint that fits your data representation:
+
+* **Mesh:** `Network_PipeForge3DMesh_Best_LC_32_ae_2d_to_2d.pth`
+* **Point Cloud (PCD):** `Network_PipeForge3DPCD_Best_LC_32_ae_2d_to_2d.pth`
+
+Create a weights directory in the root of the repository and place the downloaded `.pth` file inside:
+
+```bash
+mkdir -p weights
+# Move your downloaded .pth file into this folder
+
+```
+
+### 2. Prepare the Dataset
+
+From the `Datasets` folder in the Google Drive, download the dataset corresponding to your chosen weights:
+
+* `PipeForge3DMesh_Best.zip`
+* `PipeForge3DPCD_Best.zip`
+
+Create a data directory, place the zip file inside, and extract its contents:
+
+```bash
+mkdir -p data
+# Extract the zip file into the ./data folder
+
+```
+
+### 3. Set Up Evaluation Data
+
+Navigate to your extracted dataset folder (inside `./data`) and create an `evals` directory.
+
+Place your input `.npy` files (representing the incomplete structures or holes) into this `evals` directory. If you just want to test the pipeline, you can use one of the pre-existing examples provided in the dataset's `preds_fixed` folder.
+
+> **Note:** The model was trained on the first 90% of the examples in this dataset.
+
+### 4. Update Configuration
+
+Open `configs/configs_parser.py` in your text editor. Under the `Ex1` section, uncomment the configuration line that matches your downloaded weights. For example:
+
+```python
+CONFIG_FILENAME = "experiment1/PipeForge3DPCD_Best_LC_32.yaml"
+
+```
+
+### 5. Run the Pipeline
+
+Execute the pipeline script to generate the predictions:
+
+```bash
+python online_pipeline.py
+
+```
+
+The final model results will be saved in the following directory:
+`./data_results/<dataset-name>/merge_pipeline`
+
+### 6. Visualization (Optional)
+
+To inspect the resulting `.npy` files, you can use the included visualization tool:
+
+```bash
+python datasets_visualize/dataset_visulalization.py
+
+```
+
+This tool supports an **interactive mode** for live viewing, or you can configure it to save the rendered visualizations locally to:
+`./data_results/<dataset-name>/visualization`
+
+---
+
 ## Data Setup
 
 Our pipeline supports multiple data representations (Voxel Grids, Meshes, and Point Clouds). Below is an example of setting up a medical dataset (e.g., [Parse2022](https://parse2022.grand-challenge.org/)).
