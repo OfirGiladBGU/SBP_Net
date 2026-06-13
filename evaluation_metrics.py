@@ -1247,7 +1247,6 @@ def main():
 
 if __name__ == "__main__":
     # NOTE: FUTURE DIRECTIONS TODOs:
-    
     # TODO: try to improve cleanup of 2D models results for the 3D fusion
     # TODO: support the classification models
     # TODO: add 45 degrees projections

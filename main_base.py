@@ -53,7 +53,7 @@ def run_main(args: argparse.Namespace, model_type: ModelType):
         from trainer.train_3d import Trainer
         weights_filepath = WEIGHTS_3D_PATH
     else:
-        raise ValueError(f"Model Type '{args.model_type}' is not supported.")
+        raise ValueError(f"Model Type '{model_type}' is not supported.")
 
     # Set default weights filepath
     if weights_filepath is None:

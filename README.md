@@ -73,7 +73,7 @@ If you are generating synthetic holes in complete structures (e.g., using [PipeF
 
 ## Training
 
-The repository supports training for three model variations. Training configurations are dynamically loaded from your selected `.yaml` file.
+The repository supports training for 2 model variations. Training configurations are dynamically loaded from your selected `.yaml` file.
 
 - **2D Model (2D Projection Completion):** Detects and fills holes within the 2D orthographic depth projections.
   ```bash
@@ -84,7 +84,7 @@ The repository supports training for three model variations. Training configurat
   python main_3d.py
   ```
 
-> **Note:** The core **SBP-Net** approach relies exclusively on the **2D Model**. However, **3D Model** is used for baselines comparison and future research directions.
+> **Note:** The core **SBP-Net** approach relies exclusively on the **2D Model**. However, the **3D Model** is used for baseline comparisons and future research directions.
 
 ---
 
