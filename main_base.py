@@ -46,17 +46,14 @@ def run_main(args: argparse.Namespace, model_type: ModelType):
     model = init_model(args=args)
 
     # Import relevant Trainer
-    if model_type == ModelType.Model_1D:
-        from trainer.train_1d import Trainer
-        weights_filepath = WEIGHTS_1D_PATH
-    elif model_type == ModelType.Model_2D:
+    if model_type == ModelType.Model_2D:
         from trainer.train_2d import Trainer
         weights_filepath = WEIGHTS_2D_PATH
     elif model_type == ModelType.Model_3D:
         from trainer.train_3d import Trainer
         weights_filepath = WEIGHTS_3D_PATH
     else:
-        raise ValueError(f"Model Type '{args.model_type}' is not supported.")
+        raise ValueError(f"Model Type '{model_type}' is not supported.")
 
     # Set default weights filepath
     if weights_filepath is None:

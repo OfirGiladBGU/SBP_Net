@@ -19,9 +19,6 @@ from datasets_visualize.dataset_visulalization import interactive_plot_2d, inter
 ################
 
 # debug configs #
-# MODEL_1D = "vit_2d_to_1d"
-# INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
 # MODEL_2D = "ae_6_2d_to_6_2d"
 # INPUT_SIZE_MODEL_2D = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
@@ -33,8 +30,6 @@ from datasets_visualize.dataset_visulalization import interactive_plot_2d, inter
 
 
 # Paper config #
-MODEL_1D = ""
-INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 MODEL_2D = "ae_2d_to_2d"
 INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 MODEL_3D = ""
@@ -47,8 +42,6 @@ PARALLEL_PREDICT = True
 
 
 # SOTA Unet3D config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = "unet3d"
@@ -297,10 +290,6 @@ if __name__ == "__main__":
                         help='random seed (default: 1)')
     # parser.add_argument('--weights-filepath', type=str, default='./weights/Network.pth', metavar='N',
     #                     help='Which weights to use')  # Moved to YAML config
-    parser.add_argument('--model-1d', type=str, default=MODEL_1D, metavar='N',
-                        help='Which 1D model to use')
-    parser.add_argument('--input-size-model-1d', type=tuple, default=INPUT_SIZE_MODEL_1D, metavar='N',
-                        help='Which input size the 1D model should to use')
     parser.add_argument('--model-2d', type=str, default=MODEL_2D, metavar='N',
                         help='Which 2D model to use')
     parser.add_argument('--input-size-model-2d', type=tuple, default=INPUT_SIZE_MODEL_2D, metavar='N',

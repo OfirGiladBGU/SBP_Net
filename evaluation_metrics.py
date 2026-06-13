@@ -23,9 +23,6 @@ from datasets_visualize.dataset_visulalization import interactive_plot_2d, inter
 ################
 
 # debug configs #
-# MODEL_1D = "vit_2d_to_1d"
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
-
 # MODEL_2D = "ae_6_2d_to_6_2d"
 # INPUT_SIZE_MODEL_2D = (6, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 
@@ -37,8 +34,6 @@ from datasets_visualize.dataset_visulalization import interactive_plot_2d, inter
 
 
 # Paper config #
-MODEL_1D = ""
-INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 MODEL_2D = "ae_2d_to_2d"
 INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 MODEL_3D = ""
@@ -62,8 +57,6 @@ DATA_3D_EXT = ".nii.gz"
 
 
 # SOTA DeepCA config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = ""  # Trained from DeepCA repo
@@ -87,8 +80,6 @@ DATA_3D_EXT = ".nii.gz"
 
 
 # SOTA Convolutional Occupancy Networks config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = ""  # Trained from Convolutional Occupancy Network repo
@@ -113,8 +104,6 @@ DATA_3D_EXT = ".nii.gz"
 
 
 # SOTA OReX config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = ""  # Trained from OReX repo
@@ -139,8 +128,6 @@ DATA_3D_EXT = ".nii.gz"
 
 
 # SOTA Unet3D config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = "unet3d"
@@ -165,8 +152,6 @@ DATA_3D_EXT = ".nii.gz"
 
 # SOTA MBD config - Deprecated #
 # Make sure: RUN_FULL_PREDICT = False and enable input merging
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = ""  # Trained from MBD repo
@@ -191,8 +176,6 @@ DATA_3D_EXT = ".nii.gz"
 
 
 # SOTA 3D RecGAN config #
-# MODEL_1D = ""
-# INPUT_SIZE_MODEL_1D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_2D = ""
 # INPUT_SIZE_MODEL_2D = (1, DATA_2D_SIZE[0], DATA_2D_SIZE[1])
 # MODEL_3D = "recgan_3d"
@@ -1263,16 +1246,12 @@ def main():
 
 
 if __name__ == "__main__":
-    # NOTE: FUTURE TODOs:
-
-    # TODO: try to improve cleanup of 2D models results for the 3D fusion - TBD
-    # TODO: support the classification models - TBD
-    # TODO: add 45 degrees projections - Removed
-    # TODO: create csv log per 3D object to improve search (Maybe in the future) - Removed
-    # TODO: Support different tasks - Disabled
-
-    # NOTE: another note for next stage:
-
+    # NOTE: FUTURE DIRECTIONS TODOs:
+    # TODO: try to improve cleanup of 2D models results for the 3D fusion
+    # TODO: support the classification models
+    # TODO: add 45 degrees projections
+    # TODO: create csv log per 3D object to improve search
+    # TODO: Support extra different tasks - DISABLED
     # TODO: Add label on number of connected components inside a 3D volume
     # TODO: Use the label to add a task for the model to predict the number of connected components
 
@@ -1283,10 +1262,6 @@ if __name__ == "__main__":
                         help='random seed (default: 42)')
     # parser.add_argument('--weights-filepath', type=str, default='./weights/Network.pth', metavar='N',
     #                     help='Which weights to use')  # Moved to YAML config
-    parser.add_argument('--model-1d', type=str, default=MODEL_1D, metavar='N',
-                        help='Which 1D model to use')
-    parser.add_argument('--input-size-model-1d', type=tuple, default=INPUT_SIZE_MODEL_1D, metavar='N',
-                        help='Which input size the 2D model should to use')
     parser.add_argument('--model-2d', type=str, default=MODEL_2D, metavar='N',
                         help='Which 2D model to use')
     parser.add_argument('--input-size-model-2d', type=tuple, default=INPUT_SIZE_MODEL_2D, metavar='N',

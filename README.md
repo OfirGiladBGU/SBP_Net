@@ -73,12 +73,8 @@ If you are generating synthetic holes in complete structures (e.g., using [PipeF
 
 ## Training
 
-The repository supports training for three model variations. Training configurations are dynamically loaded from your selected `.yaml` file.
+The repository supports training for 2 model variations. Training configurations are dynamically loaded from your selected `.yaml` file.
 
-- **1D Model (1-Bit Hole Filter):** Outputs a single 1D boolean value (`True`/`False`) to efficiently predict and filter whether a given 3D sub-volume contains structural gaps requiring repair.
-  ```bash
-  python main_1d.py
-  ```
 - **2D Model (2D Projection Completion):** Detects and fills holes within the 2D orthographic depth projections.
   ```bash
   python main_2d.py
@@ -88,7 +84,7 @@ The repository supports training for three model variations. Training configurat
   python main_3d.py
   ```
 
-> **Note:** The core **SBP-Net** approach relies exclusively on the **2D Model**. However, the repository is designed to allow flexible integration of the 1D and 3D models to support expanded pipelines and future research directions.
+> **Note:** The core **SBP-Net** approach relies exclusively on the **2D Model**. However, the **3D Model** is used for baseline comparisons and future research directions.
 
 ---
 

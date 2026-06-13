@@ -1,4 +1,4 @@
-# SBP-Net
+# SBP-Net - Full Doc
 
 
 ## Description:
@@ -32,7 +32,7 @@ See examples:
    - [parse2022_SC_32.yaml](configs/parse2022_SC_32.yaml)
    - [parse2022_LC_32.yaml](configs/parse2022_LC_32.yaml)
 3. Update the `CONFIG_FILENAME` field inside the [configs_parser.py](configs/configs_parser.py) with the `.yaml` filepath relative to the `./configs` folder path.
-4. Build the `dataset_2d` (also `dataset_1d`) by running `dataset_2d_creator` script: [dataset_2d_creator.py](datasets_forge/dataset_2d_creator.py)
+4. Build the `dataset_2d` by running `dataset_2d_creator` script: [dataset_2d_creator.py](datasets_forge/dataset_2d_creator.py)
 5. [Optional] Build the `dataset_3d` by running  `dataset_3d_creator` script: [dataset_3d_creator.py](datasets_forge/dataset_3d_creator.py) \
 (In case `3D to 3D` models are used).
 6. Notice that the following structure will be created in the `DATASET_INPUT_FOLDER` (from config):
@@ -79,10 +79,8 @@ In case you have only a dataset of 3D files, and you want to create random holes
 
 ## Training:
 
-There are 3 types of model supported in this repo:
+There are 2 types of model supported in this repo:
 
-- `1D Model` - Predicts a binary label of `True/False` if the given input contains interesting holes. 
-   The model purpose is to filter out the samples that will be sent to the `2D Model`. 
 - `2D Model` - Detect and fills holes on the given 2D orthographic depth projections.
 - `3D Model` - Detect and fill occluded holes that couldn't be detected by the `2D Model`.
 
@@ -95,14 +93,12 @@ Notice that the results of the trained model predictions will be saved in follow
 
 ### How to train the models:
 
-- To train the `model_1d` run `main_1d` script: [main_1d.py](main_1d.py) (Currently `NOT USED` for Full Pipeline)
 - To train the `model_2d` run `main_2d` script: [main_2d.py](main_2d.py)
 - To train the `model_3d` run `main_3d` script: [main_3d.py](main_3d.py) (Currently `DISABLED` for Full Pipeline)
 
 **Notice:** all scripts are calling the generic [main_base.py](main_base.py) scripts that call the matching training 
 scripts in the files, based on the `model_type` parameter in the relevant `main_{i}` script:
 
-- [train_1d.py](trainer/train_1d.py)
 - [train_2d.py](trainer/train_2d.py)
 - [train_3d.py](trainer/train_3d.py)
 
@@ -154,7 +150,7 @@ The results of the prediction pipeline are saved in `./data_results/{DATASET_OUT
 
 The flow is as follows for `preds` data (The follow for `evals` data is the same , with the relevant changes):
 
-1. `[Disabled]` Use `model 1D` on the `preds_fixed_2d` data to filter out the samples that will be sent to the `model 2D`.
+1. Filtering out the samples from `preds_fixed_2d` that will be sent to the `model 2D`.
 2. Use `model 2D` on the `preds_fixed_2d` data.
 3. Save the results in `output_2d`.
 4. Perform `fusion` on the `output_2d` data to get `input_3d` data.
@@ -232,7 +228,7 @@ Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
 ---
 
-## Available Approaches:
+## Custom Available Approaches:
 
 Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
 
@@ -288,8 +284,6 @@ Given the [CROPPED] `3d ground truth` and the [CROPPED] `3d predicted labels`:
       2. Predict with the `cropped 3d predicted labels` to get the `cropped 3d fixed labels`
    3. Use all the `cropped 3d fixed label` to fix the `3d predicted labels`
 
-**Notice:** `Model 1D` doesn't appear in flows above, as it can either be used to filter out the samples that will be sent to the `model 2D` or not used at all.
-
 ---
 
 ## Visualization:
@@ -341,7 +335,7 @@ python -m pip install -U --force pip
   Available in [main.py](models/sota/model_3d/unet3d/main.py)
 - [3D-RecGAN](https://github.com/Yang7879/3D-RecGAN) - 
   Available in [main.py](models/sota/model_3d/recgan_3d/main.py)
-- (Deprecated) [MBD V1](https://github.com/texsmv/point_cloud_reconstruction) |   [MBD V2](https://github.com/ivansipiran/Data-driven-cultural-heritage) - 
+- (Deprecated) [MBD V1](https://github.com/texsmv/point_cloud_reconstruction) | [MBD V2](https://github.com/ivansipiran/Data-driven-cultural-heritage) - 
   Available in [Adapted MBD V2](https://github.com/OfirGiladBGU/Data-driven-cultural-heritage).
 - [Conv ONet](https://github.com/autonomousvision/convolutional_occupancy_networks) - 
   Available in [Adapted Conv ONet](https://github.com/OfirGiladBGU/convolutional_occupancy_networks)
@@ -356,17 +350,3 @@ python -m pip install -U --force pip
 
 Commit with big change:
 11.04.2025 - configured new noise filters based on the Continuity fix 3D filters
-
----
-
-## [NOT USED] Graph Generators
-
-https://github.com/networkx/grave
-
-https://github.com/deyuan/random-graph-generator
-
-https://github.com/mlimbuu/random-graph-generator
-
-https://github.com/mlimbuu/TCGRE-graph-generator
-
-https://github.com/connectedcompany/alph

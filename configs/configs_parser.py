@@ -102,7 +102,6 @@ print(f"[Init] Configuration Filename: {CONFIG_FILENAME}")
 
 # Util classes
 class ModelType(Enum):
-    Model_1D = 1
     Model_2D = 2
     Model_3D = 3
 
@@ -148,7 +147,6 @@ PREDICT_SKIP_PERCENTAGE = config_data.get("PREDICT_SKIP_PERCENTAGE", 0.9)  # Inf
 INCLUDE_2D_PROJECTIONS = config_data.get("INCLUDE_2D_PROJECTIONS", True)  # Info: If True, the 2D depth projections will be created from the 3D data.
 
 # Read Weights Configurations
-WEIGHTS_1D_PATH = config_data.get("WEIGHTS_1D_PATH", None)
 WEIGHTS_2D_PATH = config_data.get("WEIGHTS_2D_PATH", None)
 WEIGHTS_3D_PATH = config_data.get("WEIGHTS_3D_PATH", None)
 
@@ -211,9 +209,6 @@ APPLY_CONTINUITY_FIX_2D = config_data.get("APPLY_CONTINUITY_FIX_2D", False)  # T
 BINARY_DILATION = config_data.get("BINARY_DILATION", True)  # Enable the usage local scope binary dilation mask (2D - 4 directions, 3D - 6 directions)
 TRAIN_CONNECTIVITY_TYPE_3D = config_data.get("TRAIN_CONNECTIVITY_TYPE_3D", 6)
 TRAIN_CONNECTIVITY_TYPE_2D = config_data.get("TRAIN_CONNECTIVITY_TYPE_2D", 4)
-
-# Dataset 1D
-V1_1D_DATASETS = ['Trees1DV1']
 
 # Dataset 2D
 V1_2D_DATASETS = ['Trees2DV1S', 'Trees2DV1', 'Trees2DV1R']
