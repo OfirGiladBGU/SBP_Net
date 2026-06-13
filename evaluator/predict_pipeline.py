@@ -233,8 +233,6 @@ def export_output_3d(data_3d_stem, data_3d_filepath, data_3d_output: torch.Tenso
 # Core Functions #
 ##################
 def init_pipeline_models(args: argparse.Namespace):
-    # Load 1D model
-
     # Load 2D model
     if len(args.model_2d) > 0:
         args.input_size = args.input_size_model_2d
@@ -314,8 +312,6 @@ def single_predict(args: argparse.Namespace,
         apply_batch_merge = False
 
     with torch.no_grad():
-        # TODO: Support 1D model TBD
-
         ##############
         # 2D Section #
         ##############

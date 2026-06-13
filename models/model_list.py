@@ -1,9 +1,5 @@
 import argparse
 
-# 1D models
-from models.model_1d.cnn_2d_to_1d import Network1D as CNN_2D_TO_1D
-from models.model_1d.vit_2d_to_1d import DynamicViT as VIT_2D_TO_1D
-
 
 # 2D models
 from models.model_2d.ae import Network2D as AE
@@ -28,10 +24,6 @@ from models.sota.model_3d.recgan_3d.main import Network3D as RecGAN_3D
 def init_model(args: argparse.Namespace):
     print(f"[Model: '{args.model}'] Initializing...")
     model_map = {
-        # 1D models
-        "cnn_2d_to_1d": CNN_2D_TO_1D,
-        "vit_2d_to_1d": VIT_2D_TO_1D,
-
         # 2D models
         "ae": AE,
         "ae_2d_to_2d": AE_2D_TO_2D,

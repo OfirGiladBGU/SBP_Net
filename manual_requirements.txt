@@ -36,11 +36,6 @@ pip install torcheval
 pip install rtree
 
 
-# Optional for using ViT in model_1d #
-
-pip install einops
-
-
 # Optional for using unet3d in model_3d #
 
 pip install h5py

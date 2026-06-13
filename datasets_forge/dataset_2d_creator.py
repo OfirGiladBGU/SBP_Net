@@ -1334,8 +1334,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # TODO: Add classifier model to find cubes with holes better - model 2D to 1D - Disabled
-
     # TODO:
     # 1. Make sure DATASET_FOLDER folder is present in the root directory
     main()

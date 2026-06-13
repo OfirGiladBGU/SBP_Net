@@ -46,10 +46,7 @@ def run_main(args: argparse.Namespace, model_type: ModelType):
     model = init_model(args=args)
 
     # Import relevant Trainer
-    if model_type == ModelType.Model_1D:
-        from trainer.train_1d import Trainer
-        weights_filepath = WEIGHTS_1D_PATH
-    elif model_type == ModelType.Model_2D:
+    if model_type == ModelType.Model_2D:
         from trainer.train_2d import Trainer
         weights_filepath = WEIGHTS_2D_PATH
     elif model_type == ModelType.Model_3D:
