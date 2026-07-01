@@ -1,0 +1,33 @@
+##########################################
+# Interactive Demo (app/) extra installs #
+##########################################
+
+# These are ADDITIONAL to the base project requirements in
+# ../manual_requirements.txt. Install them into the same conda env (SBP).
+# The web viewer is served as vanilla JS/WebGL2 straight from Python, so there
+# is NO Node.js / npm / bundler -- a single Python env, no split.
+
+# Assumes the base env already exists (see ../manual_requirements.txt):
+#   conda create --name SBP python=3.10.11
+#   conda activate SBP
+
+# Core #
+
+pip install flask  # local headless server for app/server.py (only extra needed)
+
+
+# Notes #
+
+# - Everything else the demo uses (torch, numpy, opencv-python, scipy, pandas,
+#   scikit-image, PyYAML) is already covered by ../manual_requirements.txt.
+# - On this Windows env torch/MKL + conda OpenMP can clash ("OMP: Error #15").
+#   The app sets KMP_DUPLICATE_LIB_OK=TRUE itself; no install needed. PyCharm
+#   sets it too. Only relevant when launching from a plain shell.
+
+
+####################
+# Tested versions: #
+####################
+
+flask     3.1.2
+werkzeug  3.1.5

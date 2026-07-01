@@ -274,7 +274,8 @@ def single_predict(args: argparse.Namespace,
                    data_3d_folder=None, data_2d_folder=None,  # For offline mode only
                    log_data=None, enable_debug=True,
                    run_2d_flow=True, run_3d_flow=True,
-                   export_2d=True, export_3d=True):
+                   export_2d=True, export_3d=True,
+                   return_output_3d=False):  # For online/interactive mode: return the reconstructed cube in memory
     if args.mode == "offline" and not os.path.exists(data_3d_filepath):
         raise ValueError(f"File: {data_3d_filepath} doesn't exist!")
 
@@ -429,6 +430,10 @@ def single_predict(args: argparse.Namespace,
                     data_3d_filepath=data_3d_filepath,
                     data_3d_output=data_3d_output
                 )
+
+            # Interactive/online mode: hand the reconstructed cube back in memory (no disk round-trip)
+            if return_output_3d is True:
+                return data_3d_output.detach().cpu().numpy()
         else:
             pass
 
