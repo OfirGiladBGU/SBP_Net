@@ -95,6 +95,58 @@ void main() {
   fragColor = vec4(v_id, 1.0);
 }`;
 
+// Instanced lit voxel cubes (Phase 5): one unit cube stamped at every voxel via
+// drawArraysInstanced. Axis-aligned faces + a directional light + hemispheric
+// ambient give per-face shading -> a clear sense of depth as the object orbits.
+const VS_VOXEL = `#version 300 es
+layout(location=0) in vec3 a_cubePos;    // unit-cube vertex (edge 1, centered)
+layout(location=1) in vec3 a_normal;     // face normal
+layout(location=2) in vec3 a_offset;     // per-instance voxel center (world)
+layout(location=3) in float a_type;      // per-instance: 0 input, 1 recon, 2 last
+uniform mat4 u_proj, u_view;
+uniform float u_voxelSize;
+uniform float u_showRecon;
+out vec3 v_color; out vec3 v_normal; flat out float v_cull;
+void main() {
+  v_cull = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
+  gl_Position = u_proj * u_view * vec4(a_offset + a_cubePos * u_voxelSize, 1.0);
+  v_normal = a_normal;
+  if (a_type < 0.5)       v_color = vec3(0.55, 0.60, 0.68);   // input  (grey)
+  else if (a_type < 1.5)  v_color = vec3(0.26, 0.82, 0.48);   // recon  (green)
+  else                    v_color = vec3(1.00, 0.81, 0.30);   // last   (amber)
+}`;
+const FS_VOXEL = `#version 300 es
+precision highp float;
+in vec3 v_color; in vec3 v_normal; flat in float v_cull;
+out vec4 fragColor;
+void main() {
+  if (v_cull > 0.5) discard;
+  vec3 N = normalize(v_normal);
+  vec3 L = normalize(vec3(0.45, 0.85, 0.35));
+  float diff = max(dot(N, L), 0.0);
+  float ambient = 0.42 + 0.18 * N.y;              // hemispheric: brighter from above
+  vec3 col = v_color * (ambient + 0.70 * diff);
+  fragColor = vec4(col, 1.0);
+}`;
+
+// A unit cube (edge length 1, centered on origin) with one outward normal per face.
+function unitCubeGeometry() {
+  const faces = [
+    { n: [0, 0, 1],  c: [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]] },     // +Z
+    { n: [0, 0, -1], c: [[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]] }, // -Z
+    { n: [1, 0, 0],  c: [[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]] },     // +X
+    { n: [-1, 0, 0], c: [[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]] }, // -X
+    { n: [0, 1, 0],  c: [[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]] },     // +Y
+    { n: [0, -1, 0], c: [[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]] }, // -Y
+  ];
+  const pos = [], nor = [], tri = [0, 1, 2, 0, 2, 3];
+  for (const f of faces) for (const i of tri) {
+    pos.push(f.c[i][0] * 0.5, f.c[i][1] * 0.5, f.c[i][2] * 0.5);
+    nor.push(f.n[0], f.n[1], f.n[2]);
+  }
+  return { positions: new Float32Array(pos), normals: new Float32Array(nor) };
+}
+
 // --------------------------------------------------------------------------- //
 // GL setup helpers.                                                           //
 // --------------------------------------------------------------------------- //
@@ -126,6 +178,7 @@ class Demo {
 
     this.progRender = program(gl, VS_RENDER, FS_RENDER);
     this.progPick = program(gl, VS_PICK, FS_PICK);
+    this.progVoxel = program(gl, VS_VOXEL, FS_VOXEL);
 
     // Geometry buffers (grown as reconstructions come back).
     this.positions = [];   // flat world xyz per point
@@ -135,15 +188,43 @@ class Demo {
     this.shape = [1, 1, 1];
     this.center = [0, 0, 0];
     this.cubeSize = 32;
+    this.voxelSize = 0.02;  // world edge length of one voxel cube (set in loadVolume)
 
-    this.vao = gl.createVertexArray();
+    // Per-instance data: voxel center (posBuf) + type (typeBuf). Shared by the
+    // points renderer (as vertices) and the voxel renderer (as instances).
     this.posBuf = gl.createBuffer();
     this.typeBuf = gl.createBuffer();
+
+    // --- points VAO (attribs are per-vertex) ---
+    this.vao = gl.createVertexArray();
     gl.bindVertexArray(this.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuf);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.typeBuf);
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    // --- voxel VAO (unit cube per vertex + posBuf/typeBuf per instance) ---
+    const cube = unitCubeGeometry();
+    this.cubePosBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cubePosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, cube.positions, gl.STATIC_DRAW);
+    this.cubeNorBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cubeNorBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, cube.normals, gl.STATIC_DRAW);
+
+    this.cubeVao = gl.createVertexArray();
+    gl.bindVertexArray(this.cubeVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cubePosBuf);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cubeNorBuf);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuf);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(2, 1);   // one offset per instance
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.typeBuf);
+    gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(3, 1);   // one type per instance
     gl.bindVertexArray(null);
 
     // Offscreen framebuffer for GPU color-picking.
@@ -156,6 +237,7 @@ class Demo {
     this.cam = { theta: 0.9, phi: 1.1, radius: 2.4, target: [0, 0, 0] };
     this.pointSize = 4.0;
     this.showRecon = true;
+    this.renderMode = "voxels";   // "voxels" (lit cubes) or "points"
     this.busy = false;
 
     this._bindUI();
@@ -196,6 +278,9 @@ class Demo {
     this.shape = data.shape;
     this.cubeSize = data.cube_size;
     this.center = [this.shape[0] / 2, this.shape[1] / 2, this.shape[2] / 2];
+    // A voxel spans one index unit; _worldOf scales by 1/max(shape). 0.9 leaves a
+    // hairline gap between neighbours so cube edges stay legible.
+    this.voxelSize = (1.0 / Math.max(this.shape[0], this.shape[1], this.shape[2])) * 0.9;
     this.positions = []; this.types = []; this.voxels = [];
     this._appendVoxels(data.original, 0);
     this._appendVoxels(data.reconstructed, 1);
@@ -237,13 +322,30 @@ class Demo {
     gl.bindVertexArray(null);
   }
 
+  _drawVoxels() {
+    const gl = this.gl;
+    const { proj, view } = this._matrices();
+    const p = this.progVoxel;
+    gl.useProgram(p);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_proj"), false, proj);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_view"), false, view);
+    gl.uniform1f(gl.getUniformLocation(p, "u_voxelSize"), this.voxelSize);
+    gl.uniform1f(gl.getUniformLocation(p, "u_showRecon"), this.showRecon ? 1.0 : 0.0);
+    gl.bindVertexArray(this.cubeVao);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, this.count);
+    gl.bindVertexArray(null);
+  }
+
   _render() {
     const gl = this.gl;
     const dpr = window.devicePixelRatio || 1;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    if (this.count) this._drawPoints(this.progRender, dpr);
+    if (this.count) {
+      if (this.renderMode === "voxels") this._drawVoxels();
+      else this._drawPoints(this.progRender, dpr);
+    }
     requestAnimationFrame(() => this._render());
   }
 
@@ -342,6 +444,9 @@ class Demo {
 
   // ----- UI wiring -------------------------------------------------------- //
   _bindUI() {
+    document.getElementById("toggleVoxel").addEventListener("change", (e) => {
+      this.renderMode = e.target.checked ? "voxels" : "points";
+    });
     document.getElementById("pointSize").addEventListener("input", (e) => {
       this.pointSize = parseFloat(e.target.value);
     });
