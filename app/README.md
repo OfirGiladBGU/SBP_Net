@@ -60,12 +60,17 @@ eval object), `--port 5000`, `--no-cuda`.
 | Method / path | Purpose |
 |---|---|
 | `GET /volume` | Current state: `{name, shape, cube_size, original[], reconstructed[]}` (flat `x,y,z` voxel lists). |
-| `POST /reconstruct` `{x,y,z}` | Reconstruct a centered cube from the **current** state, OR it in, return newly-added voxels. `409` if one is already in flight. |
+| `POST /reconstruct` `{x,y,z}` | Reconstruct a centered cube from the **current** state, OR it in, return newly-added voxels **plus** `views.before` / `views.after` (the 2D network input/output as PNGs). `409` if one is already in flight. |
+| `GET /full_inference` | Run the paper's full stride-grid pipeline over the whole volume; **Server-Sent Events** stream per-cube progress (`{type:"progress",done,total,added}` … `{type:"done",…}`), then the merged result replaces the state. `409` if busy. |
 | `POST /reset` | Restore the original volume (drops all reconstructions). |
 
 ## Controls
 
 Drag to orbit · wheel to zoom · right/shift-drag to pan · **click a point** to
 reconstruct around it. A blocking loader is shown while the pipeline runs (it is
-also the concurrency lock — one reconstruction at a time). Point size, a
-show/hide-reconstructed toggle, Reset, and Recenter are in the top-right panel.
+also the concurrency lock — one reconstruction at a time). Top-right panel: voxel
+(lit) vs. points view, point size, show/hide reconstructed, Reset, Recenter, and
+**Run Full Inference** (streams progress while the whole volume is processed).
+
+After a click, the **bottom panel** shows the 6 projections of that cube with a
+**Before / After** flip — the 2D input the network saw vs. the output it produced.

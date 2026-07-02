@@ -18,12 +18,15 @@ import os
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")  # see reconstruct_core.py
 
 import argparse
+import base64
+import json
 import pathlib
 import sys
 import threading
 
+import cv2
 import numpy as np
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
 ROOT_PATH = str(pathlib.Path(__file__).absolute().parent.parent)
 if ROOT_PATH not in sys.path:
@@ -32,10 +35,31 @@ if ROOT_PATH not in sys.path:
 from app.reconstruct_core import (
     CUBE_SIZE,
     build_args,
+    full_inference,
     init_models,
     load_demo_volume,
     reconstruct_at,
 )
+
+
+def _png_data_url(image: np.ndarray, upscale: int = 4) -> str:
+    """Encode a small grayscale HxW uint8 image as a base64 PNG data URL.
+
+    Nearest-neighbour upscaled so the 32x32 projections are legible in the panel.
+    """
+    img = np.ascontiguousarray(image.astype(np.uint8))
+    if upscale > 1:
+        img = cv2.resize(img, (img.shape[1] * upscale, img.shape[0] * upscale),
+                         interpolation=cv2.INTER_NEAREST)
+    ok, buf = cv2.imencode(".png", img)
+    if not ok:
+        return ""
+    return "data:image/png;base64," + base64.b64encode(buf.tobytes()).decode("ascii")
+
+
+def _encode_views(views: dict) -> dict:
+    """{view: HxW uint8} -> {view: png-data-url}."""
+    return {view: _png_data_url(img) for view, img in views.items()}
 
 STATIC_DIR = pathlib.Path(__file__).absolute().parent.joinpath("static")
 
@@ -145,9 +169,48 @@ def post_reconstruct():
             "added": int(len(new_coords)),
             "start": result["start"],
             "new": new_coords.reshape(-1).astype(int).tolist(),
+            # 6-view 2D input/output of the 2D network (before/after) for the panel.
+            "views": {
+                "before": _encode_views(result["views_before"]),
+                "after": _encode_views(result["views_after"]),
+            },
         })
     finally:
         STATE.lock.release()
+
+
+@app.route("/full_inference", methods=["GET"])
+def get_full_inference():
+    """
+    Run the paper's full stride-grid pipeline over the whole current volume and
+    stream per-cube progress as Server-Sent Events. Each message is JSON:
+      {"type":"progress","done":D,"total":T,"added":A}
+      {"type":"done","done":T,"total":T,"added":A}
+    On completion the authoritative state is replaced with the merged result.
+    Single-flight: 409 if a reconstruction / full run is already in flight.
+    """
+    if not STATE.lock.acquire(blocking=False):
+        return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
+
+    def stream():
+        try:
+            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext):
+                if "result" in ev:
+                    result = ev.pop("result")
+                    # Replace the authoritative state; everything the model added
+                    # over the original becomes "reconstructed" (constraint 2).
+                    STATE.volume = (result > 0.5).astype(np.uint8)
+                    STATE.reconstructed = ((STATE.volume > 0.5) & (STATE.original <= 0.5)).astype(np.uint8)
+                    yield f"data: {json.dumps({'type': 'done', **ev})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'progress', **ev})}\n\n"
+        except Exception as exc:  # surface pipeline errors to the client
+            yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
+        finally:
+            STATE.lock.release()
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
+    return Response(stream_with_context(stream()), mimetype="text/event-stream", headers=headers)
 
 
 @app.route("/reset", methods=["POST"])

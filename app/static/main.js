@@ -240,6 +240,10 @@ class Demo {
     this.renderMode = "voxels";   // "voxels" (lit cubes) or "points"
     this.busy = false;
 
+    // 2D projections panel state (last picked cube's before/after views).
+    this.views = { before: {}, after: {} };
+    this.flipSide = "after";
+
     this._bindUI();
     this._bindPointer();
     this._resize();
@@ -422,6 +426,9 @@ class Demo {
       this._appendVoxels(data.new, 2);           // pure mirror: only append backend output
       this._uploadBuffers();
       this._setStatus(`+${data.added} voxels — ${this.count.toLocaleString()} total`);
+
+      // Update the 2D projections panel (what the network saw vs. produced).
+      if (data.views) { this.views = data.views; this._setFlip("after"); }
     } catch (e) {
       this._setStatus(`request failed: ${e}`);
     } finally {
@@ -455,6 +462,66 @@ class Demo {
     });
     document.getElementById("resetBtn").addEventListener("click", () => this.reset());
     document.getElementById("fitBtn").addEventListener("click", () => this.fit());
+    document.getElementById("fullBtn").addEventListener("click", () => this.runFullInference());
+    document.getElementById("flipBtn").addEventListener("click", () => {
+      this._setFlip(this.flipSide === "after" ? "before" : "after");
+    });
+  }
+
+  // ----- 2D projections panel --------------------------------------------- //
+  _setFlip(side) {
+    this.flipSide = side;
+    const b = document.getElementById("flipBtn");
+    b.className = side;
+    b.innerHTML = `Showing: ${side === "after" ? "After" : "Before"} &nbsp;&#8635;`;
+    this._renderPanel();
+  }
+
+  _renderPanel() {
+    const views = this.views[this.flipSide] || {};
+    const order = ["top", "bottom", "front", "back", "left", "right"];
+    const el = document.getElementById("views");
+    el.innerHTML = "";
+    for (const v of order) {
+      if (!views[v]) continue;
+      const fig = document.createElement("figure");
+      const img = document.createElement("img"); img.src = views[v]; img.alt = v;
+      const cap = document.createElement("figcaption"); cap.textContent = v;
+      fig.appendChild(img); fig.appendChild(cap); el.appendChild(fig);
+    }
+    if (el.children.length) document.getElementById("panel").classList.add("on");
+  }
+
+  // ----- full inference (streamed progress) ------------------------------- //
+  runFullInference() {
+    if (this.busy) return;
+    this._setBusy(true, "Running full inference…");
+    this._progressOn(true);
+    this._setProgress(0, 0, null);
+    let done = false;
+    const es = new EventSource("/full_inference");
+    es.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === "progress") {
+        this._setProgress(m.done, m.total, m.added);
+      } else if (m.type === "done") {
+        done = true; es.close();
+        this._setProgress(m.total, m.total, m.added);
+        this.loadVolume().then(() => {
+          this._progressOn(false); this._setBusy(false);
+          this._setStatus(`full inference complete — +${m.added} voxels`);
+        });
+      } else if (m.type === "error") {
+        done = true; es.close();
+        this._progressOn(false); this._setBusy(false);
+        this._setStatus(`full inference error: ${m.error}`);
+      }
+    };
+    es.onerror = () => {
+      if (done) return;
+      es.close(); this._progressOn(false); this._setBusy(false);
+      this._setStatus("full inference: connection error");
+    };
   }
 
   _bindPointer() {
@@ -494,7 +561,17 @@ class Demo {
   _setBusy(on, msg) {
     this.busy = on;
     document.getElementById("loader").classList.toggle("on", on);
-    if (msg) this._setStatus(msg);
+    document.getElementById("fullBtn").disabled = on;
+    if (msg) { document.getElementById("loaderText").textContent = msg; this._setStatus(msg); }
+    if (!on) this._progressOn(false);
+  }
+  _progressOn(on) { document.getElementById("loaderBar").classList.toggle("on", on); }
+  _setProgress(done, total, added) {
+    const pct = total ? Math.round((100 * done) / total) : 0;
+    document.getElementById("loaderBar").firstElementChild.style.width = pct + "%";
+    const extra = added != null ? ` · +${added.toLocaleString()} voxels` : "";
+    document.getElementById("loaderText").textContent =
+      total ? `Full inference — ${done}/${total} cubes (${pct}%)${extra}` : "Preparing full inference…";
   }
   _setStatus(s) { document.getElementById("status").textContent = s; }
   _setMeta(d) {

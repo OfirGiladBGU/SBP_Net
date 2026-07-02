@@ -307,8 +307,13 @@ class Viewer:
 
 # =============================================================================
 def main():
+    # NOTE:
+    # CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours_eval.yaml" - PARSE2022
+    # CONFIG_FILENAME = "experiment1/PipeForge3DMesh_Best_LC_32.yaml" - PipeForge3D Mesh
+    # CONFIG_FILENAME = "experiment1/PipeForge3DPCD_Best_LC_32.yaml" - PipeForge3D PCD
+
     # VOL_PATH = r"D:\AllProjects\PycharmProjects\TreesAutoEncoder\data\PipeForge3DMesh_Best\eval\50.npy"
-    VOL_PATH =  r"D:\AllProjects\PycharmProjects\TreesAutoEncoder\data\parse2022_32\eval\PA000317_vessel.nii.gz"
+    VOL_PATH =  r"D:\AllProjects\PycharmProjects\TreesAutoEncoder\data\parse2022_32\eval\PA000150_vessel.nii.gz"
     ap = argparse.ArgumentParser(description="SBP-Net interactive Show & Tell viewer")
     ap.add_argument("--volume", help="Path to a .npy / .nii.gz volume", default=VOL_PATH)
     ap.add_argument("--point-size", type=float, default=4.0)

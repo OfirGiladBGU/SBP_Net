@@ -39,6 +39,7 @@ from datasets.dataset_utils import (
     get_data_file_stem,
     project_3d_to_2d,
 )
+from datasets_forge.dataset_2d_creator import crop_mini_cubes
 from evaluator.predict_pipeline import init_pipeline_models, single_predict
 
 # The cube edge length (e.g. 32). Read from config so it tracks DATA_CROP_SIZE.
@@ -134,6 +135,43 @@ def project_centered_cube(cube: np.ndarray, source_ext: str = ".npy") -> dict:
     return projections
 
 
+def _predict_cube(cube_bin: np.ndarray, args: argparse.Namespace, source_ext: str) -> dict:
+    """
+    Run one already-cropped `cube_size`^3 binary cube through the REAL online
+    pipeline (2D preprocess -> 2D model -> postprocess -> 3D reproject + OR-fuse ->
+    mandatory 3D continuity filter -> threshold). Returns the pipeline `details`
+    dict: {output_3d, input_2d, output_2d}. `input_2d`/`output_2d` are the 6-view
+    grayscale images the network saw / produced (uint8 (6, H, W)), i.e. the
+    "before"/"after" for the projections panel.
+    """
+    stem = "demo"
+    src = f"{stem}{source_ext}"
+
+    projections = project_centered_cube(cube_bin, source_ext=source_ext)
+    projections_data = {stem: projections}
+
+    details = single_predict(
+        args=args,
+        data_3d_filepath=src,
+        projections_data=projections_data,
+        log_data=None,
+        enable_debug=False,
+        run_2d_flow=args.run_2d_flow,
+        run_3d_flow=args.run_3d_flow,
+        export_2d=False,
+        export_3d=False,
+        return_details=True,
+    )
+    return details
+
+
+def _views_dict(images) -> dict:
+    """Map a (6, H, W) uint8 array to {view: HxW array}; None -> empty dict."""
+    if images is None:
+        return {}
+    return {view: images[idx] for idx, view in enumerate(IMAGES_6_VIEWS)}
+
+
 def reconstruct_at(volume: np.ndarray,
                    x: int, y: int, z: int,
                    args: argparse.Namespace,
@@ -150,35 +188,17 @@ def reconstruct_at(volume: np.ndarray,
           "new_coords":  (N, 3) int array of NEWLY-ADDED voxels in GLOBAL coords,
           "start":       (sx, sy, sz) crop origin in global coords,
           "output_cube": cube_size^3 binary reconstruction (local coords),
-          "projections": the 6-view projection dict (for optional overlay/export),
+          "views_before": {view: HxW uint8} 2D images the network saw,
+          "views_after":  {view: HxW uint8} 2D images the network produced,
         }
     """
-    stem = "demo"
-    src = f"{stem}{source_ext}"
-
     cube, (sx, sy, sz) = crop_centered_cube(volume, x, y, z, cube_size=cube_size)
 
     # Binarize the cropped input (training cubes are stored thresholded to {0, 1}).
     cube_bin = (cube > 0.5).astype(np.float32)
 
-    projections = project_centered_cube(cube_bin, source_ext=source_ext)
-    projections_data = {stem: projections}
-
-    # Real inference: 2D preprocess -> 2D model -> postprocess -> 3D reproject +
-    # OR-fuse -> 3D continuity filter (APPLY_NOISE_FILTER_3D) -> threshold.
-    output_cube = single_predict(
-        args=args,
-        data_3d_filepath=src,
-        projections_data=projections_data,
-        log_data=None,
-        enable_debug=False,
-        run_2d_flow=args.run_2d_flow,
-        run_3d_flow=args.run_3d_flow,
-        export_2d=False,
-        export_3d=False,
-        return_output_3d=True,
-    )
-    output_cube = (np.asarray(output_cube) > 0.5)
+    details = _predict_cube(cube_bin, args, source_ext)
+    output_cube = (np.asarray(details["output_3d"]) > 0.5)
 
     # Newly-added voxels = reconstruction MINUS what is already occupied in the
     # current state within this region (constraint 2: return only the new voxels).
@@ -197,8 +217,65 @@ def reconstruct_at(volume: np.ndarray,
         "new_coords": new_coords,
         "start": (int(sx), int(sy), int(sz)),
         "output_cube": output_cube,
-        "projections": projections,
+        "views_before": _views_dict(details.get("input_2d")),
+        "views_after": _views_dict(details.get("output_2d")),
     }
+
+
+def full_inference(volume: np.ndarray,
+                   args: argparse.Namespace,
+                   source_ext: str = ".npy"):
+    """
+    Run the paper's full stride-grid pipeline over the WHOLE volume, in memory.
+
+    Mirrors the offline eval flow (crop_mini_cubes at DATA_3D_SIZE/DATA_3D_STRIDE
+    -> per-view density filter -> real per-cube inference -> OR-merge back into
+    the volume). This is a generator so the server can stream progress: it yields
+    {"done", "total", "added"} after each processed cube, and finally
+    {"done": total, "total": total, "added": <cum>, "result": <merged volume>}.
+    """
+    from configs.configs_parser import (
+        DATA_3D_SIZE, DATA_3D_STRIDE,
+        DENSITY_LOWER_THRESHOLD, DENSITY_UPPER_THRESHOLD,
+    )
+
+    cubes, cubes_data = crop_mini_cubes(
+        data_3d=volume, cube_dim=DATA_3D_SIZE, stride_dim=DATA_3D_STRIDE, cubes_data=True,
+    )
+
+    # Pre-filter to the cubes worth running: at least one view within the training
+    # density band (same condition the offline eval preparation uses). This skips
+    # empty/near-empty and over-dense regions -> far fewer model calls.
+    todo = []
+    for idx, cube in enumerate(cubes):
+        if int(np.count_nonzero(cube)) == 0:
+            continue
+        projections = project_centered_cube((cube > 0.5).astype(np.float32), source_ext=source_ext)
+        for view in IMAGES_6_VIEWS:
+            nz = int(np.count_nonzero(projections[f"{view}_image"]))
+            if DENSITY_LOWER_THRESHOLD < nz < DENSITY_UPPER_THRESHOLD:
+                todo.append(idx)
+                break
+
+    total = len(todo)
+    result = (volume > 0.5).astype(np.uint8)
+    added = 0
+    for n, idx in enumerate(todo):
+        cube_bin = (cubes[idx] > 0.5).astype(np.float32)
+        details = _predict_cube(cube_bin, args, source_ext)
+        out = (np.asarray(details["output_3d"]) > 0.5)
+
+        cd = cubes_data[idx]
+        sx, sy, sz = cd["start_x"], cd["start_y"], cd["start_z"]
+        ex, ey, ez = cd["end_x"], cd["end_y"], cd["end_z"]           # clamped to volume
+        dx, dy, dz = ex - sx, ey - sy, ez - sz
+        region = result[sx:ex, sy:ey, sz:ez]
+        merged = np.logical_or(region, out[:dx, :dy, :dz])
+        added += int(np.count_nonzero(merged) - np.count_nonzero(region))
+        result[sx:ex, sy:ey, sz:ez] = merged
+        yield {"done": n + 1, "total": total, "added": added}
+
+    yield {"done": total, "total": total, "added": added, "result": result}
 
 
 # --------------------------------------------------------------------------- #
