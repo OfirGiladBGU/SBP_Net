@@ -244,6 +244,9 @@ class Demo {
     this.views = { before: {}, after: {} };
     this.flipSide = "after";
 
+    // Coalesce many live voxel appends into one GPU upload per frame.
+    this.dirty = false;
+
     this._bindUI();
     this._bindPointer();
     this._resize();
@@ -343,6 +346,7 @@ class Demo {
   _render() {
     const gl = this.gl;
     const dpr = window.devicePixelRatio || 1;
+    if (this.dirty) { this._uploadBuffers(); this.dirty = false; }  // coalesced live uploads
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -463,6 +467,7 @@ class Demo {
     document.getElementById("resetBtn").addEventListener("click", () => this.reset());
     document.getElementById("fitBtn").addEventListener("click", () => this.fit());
     document.getElementById("fullBtn").addEventListener("click", () => this.runFullInference());
+    document.getElementById("cancelBtn").addEventListener("click", () => this.cancelFullInference());
     document.getElementById("flipBtn").addEventListener("click", () => {
       this._setFlip(this.flipSide === "after" ? "before" : "after");
     });
@@ -497,31 +502,48 @@ class Demo {
     if (this.busy) return;
     this._setBusy(true, "Running full inference…");
     this._progressOn(true);
-    this._setProgress(0, 0, null);
+    this._showCancel(true);
+    this._setProgress(0, 0, 0);
     let done = false;
     const es = new EventSource("/full_inference");
     es.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.type === "progress") {
+        // Live repair: append this cube's new voxels; the render loop uploads once/frame.
+        if (m.new && m.new.length) { this._appendVoxels(m.new, 1); this.dirty = true; }
         this._setProgress(m.done, m.total, m.added);
       } else if (m.type === "done") {
         done = true; es.close();
-        this._setProgress(m.total, m.total, m.added);
-        this.loadVolume().then(() => {
-          this._progressOn(false); this._setBusy(false);
-          this._setStatus(`full inference complete — +${m.added} voxels`);
-        });
+        this._setProgress(m.done, m.total, m.added);
+        this.dirty = true;
+        this._showCancel(false); this._progressOn(false); this._setBusy(false);
+        const tag = m.cancelled ? "cancelled" : "complete";
+        this._setStatus(`full inference ${tag} — +${(m.added || 0).toLocaleString()} voxels (${m.done}/${m.total} cubes)`);
       } else if (m.type === "error") {
         done = true; es.close();
-        this._progressOn(false); this._setBusy(false);
+        this._showCancel(false); this._progressOn(false); this._setBusy(false);
         this._setStatus(`full inference error: ${m.error}`);
       }
     };
     es.onerror = () => {
       if (done) return;
-      es.close(); this._progressOn(false); this._setBusy(false);
+      es.close(); this._showCancel(false); this._progressOn(false); this._setBusy(false);
       this._setStatus("full inference: connection error");
     };
+  }
+
+  cancelFullInference() {
+    // Keep the EventSource open: the server finishes its in-flight cube(s),
+    // persists the partial result, and sends the final "done" we handle above.
+    this._setStatus("cancelling…");
+    document.getElementById("cancelBtn").disabled = true;
+    fetch("/full_inference/cancel", { method: "POST" }).catch(() => {});
+  }
+
+  _showCancel(on) {
+    const b = document.getElementById("cancelBtn");
+    b.style.display = on ? "" : "none";
+    b.disabled = false;
   }
 
   _bindPointer() {

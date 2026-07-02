@@ -78,6 +78,8 @@ class DemoState:
         self.reconstructed = np.zeros_like(self.original)     # voxels added by the model
         # The lock IS the concurrency guard: one reconstruction in flight (constraint 3).
         self.lock = threading.Lock()
+        # Set by POST /full_inference/cancel to stop an in-flight full run early.
+        self.cancel_event = threading.Event()
 
     def occupied_coords(self, mask: np.ndarray):
         """Flat [x0,y0,z0,x1,y1,z1,...] int list of occupied voxels in `mask`."""
@@ -184,10 +186,12 @@ def get_full_inference():
     """
     Run the paper's full stride-grid pipeline over the whole current volume and
     stream per-cube progress as Server-Sent Events. Each message is JSON:
-      {"type":"progress","done":D,"total":T,"added":A}
-      {"type":"done","done":T,"total":T,"added":A}
-    On completion the authoritative state is replaced with the merged result.
-    Single-flight: 409 if a reconstruction / full run is already in flight.
+      {"type":"progress","done":D,"total":T,"added":A,"new":[x,y,z,...]}  # live voxels
+      {"type":"done","done":D,"total":T,"added":A,"cancelled":bool}
+    Progress events carry the newly-added voxels so the frontend can draw the
+    reconstruction filling in live. On completion (or cancel) the authoritative
+    state is replaced with the merged result. Single-flight: 409 if busy.
+    Cancel an in-flight run with POST /full_inference/cancel.
     """
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
@@ -198,9 +202,12 @@ def get_full_inference():
     except (TypeError, ValueError):
         workers = None
 
+    STATE.cancel_event.clear()  # fresh cancel flag for this run
+
     def stream():
         try:
-            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext, workers=workers):
+            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext,
+                                     workers=workers, cancel_event=STATE.cancel_event):
                 if "result" in ev:
                     result = ev.pop("result")
                     # Replace the authoritative state; everything the model added
@@ -213,10 +220,19 @@ def get_full_inference():
         except Exception as exc:  # surface pipeline errors to the client
             yield f"data: {json.dumps({'type': 'error', 'error': str(exc)})}\n\n"
         finally:
+            STATE.cancel_event.clear()
             STATE.lock.release()
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
     return Response(stream_with_context(stream()), mimetype="text/event-stream", headers=headers)
+
+
+@app.route("/full_inference/cancel", methods=["POST"])
+def post_full_inference_cancel():
+    """Signal an in-flight full inference to stop after its current cube(s).
+    Does NOT take the lock (the run holds it) -- it only flips the cancel flag."""
+    STATE.cancel_event.set()
+    return jsonify({"ok": True})
 
 
 @app.route("/reset", methods=["POST"])
@@ -228,8 +244,16 @@ def post_reset():
 
 
 def main():
+    # NOTE:
+    # CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours_eval.yaml" - PARSE2022
+    # CONFIG_FILENAME = "experiment1/PipeForge3DMesh_Best_LC_32.yaml" - PipeForge3D Mesh
+    # CONFIG_FILENAME = "experiment1/PipeForge3DPCD_Best_LC_32.yaml" - PipeForge3D PCD
+
+    # VOLUME_PATH = r".\data\PipeForge3DMesh_Best\eval\50.npy"
+    VOLUME_PATH =  r".\data\parse2022_32\eval\PA000150_vessel.nii.gz"
+
     parser = argparse.ArgumentParser(description="SBP-Net interactive demo server")
-    parser.add_argument("--volume", type=str, default=None, help="Path to a .npy volume to load")
+    parser.add_argument("--volume", type=str, default=VOLUME_PATH, help="Path to a .npy volume to load")
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--no-cuda", action="store_true", default=False)

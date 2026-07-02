@@ -6,8 +6,7 @@ cube around that click and patches the new voxels into the view live.
 
 - **Browser (WebGL2)** renders the point cloud, handles the camera + picking.
 - **Python (Flask)** holds the volume + model in memory and runs the *real*
-  inference pipeline (online projection → 2D model → reproject/OR-fuse →
-  **mandatory 3D continuity filter**). No rendering happens in Python.
+  inference pipeline (online projection → 2D model → reproject/OR-fuse). No rendering happens in Python.
 - Fully local, headless backend. **No VTK / PyVista / matplotlib GUI.**
 
 See [`DEMO_PLAN.md`](DEMO_PLAN.md) for the design and non-negotiable constraints.
@@ -19,7 +18,6 @@ See [`DEMO_PLAN.md`](DEMO_PLAN.md) for the design and non-negotiable constraints
 | `reconstruct_core.py` | Phase 1 core: `reconstruct_at(volume, x, y, z, ...)`. Centered dynamic crop → real pipeline → newly-added voxels in **global** coords, in memory. Run directly for a proof-of-compute + projection-format check. |
 | `server.py` | Phase 2 Flask server. Owns the authoritative volume state; single-flight lock. Serves the frontend. |
 | `static/index.html`, `static/main.js` | Phase 3–5 WebGL2 frontend: point-cloud renderer, orbit camera, GPU color-picking, live click→reconstruct loop. |
-| `demo_viewer.py` | Legacy VTK/PyVista viewer (blocked by machine policy). **Not used** by this demo; kept here for reference only. |
 
 ## Requirements
 
@@ -61,7 +59,8 @@ eval object), `--port 5000`, `--no-cuda`.
 |---|---|
 | `GET /volume` | Current state: `{name, shape, cube_size, original[], reconstructed[]}` (flat `x,y,z` voxel lists). |
 | `POST /reconstruct` `{x,y,z}` | Reconstruct a centered cube from the **current** state, OR it in, return newly-added voxels **plus** `views.before` / `views.after` (the 2D network input/output as PNGs). `409` if one is already in flight. |
-| `GET /full_inference` | Run the paper's full stride-grid pipeline over the whole volume; **Server-Sent Events** stream per-cube progress (`{type:"progress",done,total,added}` … `{type:"done",…}`), then the merged result replaces the state. `409` if busy. |
+| `GET /full_inference?workers=N` | Run the paper's full stride-grid pipeline over the whole volume, **in parallel** (`workers` threads, default = machine-sized; `1` = sequential). **Server-Sent Events** stream per-cube progress incl. the cube's new voxels (`{type:"progress",done,total,added,new:[x,y,z,…]}`) for live drawing, then `{type:"done",…,cancelled}`. The merged result (partial if cancelled) replaces the state. `409` if busy. |
+| `POST /full_inference/cancel` | Signal an in-flight full run to stop after its current cube(s); the partial result is kept. Does not take the lock. |
 | `POST /reset` | Restore the original volume (drops all reconstructions). |
 
 ## Controls
@@ -70,7 +69,9 @@ Drag to orbit · wheel to zoom · right/shift-drag to pan · **click a point** t
 reconstruct around it. A blocking loader is shown while the pipeline runs (it is
 also the concurrency lock — one reconstruction at a time). Top-right panel: voxel
 (lit) vs. points view, point size, show/hide reconstructed, Reset, Recenter, and
-**Run Full Inference** (streams progress while the whole volume is processed).
+**Run Full Inference** — runs the whole volume in parallel and **draws the
+reconstruction filling in live**, cube by cube, with a progress bar and a
+**Cancel** button that stops it early (keeping whatever was completed).
 
 After a click, the **bottom panel** shows the 6 projections of that cube with a
 **Before / After** flip — the 2D input the network saw vs. the output it produced.

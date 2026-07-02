@@ -230,7 +230,8 @@ def _default_workers() -> int:
 def full_inference(volume: np.ndarray,
                    args: argparse.Namespace,
                    source_ext: str = ".npy",
-                   workers: int = None):
+                   workers: int = None,
+                   cancel_event=None):
     """
     Run the paper's full stride-grid pipeline over the WHOLE volume, in memory.
 
@@ -279,32 +280,53 @@ def full_inference(volume: np.ndarray,
         return idx, (np.asarray(details["output_3d"]) > 0.5)
 
     def _merge(idx, out):
+        """OR the cube output into the running result; return the NEWLY-added
+        voxels' GLOBAL coords (for live drawing) as a flat [x,y,z,...] list."""
         nonlocal added
         cd = cubes_data[idx]
         sx, sy, sz = cd["start_x"], cd["start_y"], cd["start_z"]
         ex, ey, ez = cd["end_x"], cd["end_y"], cd["end_z"]           # clamped to volume
         dx, dy, dz = ex - sx, ey - sy, ez - sz
         region = result[sx:ex, sy:ey, sz:ez]
-        merged = np.logical_or(region, out[:dx, :dy, :dz])
-        added += int(np.count_nonzero(merged) - np.count_nonzero(region))
-        result[sx:ex, sy:ey, sz:ez] = merged
+        out_c = out[:dx, :dy, :dz]
+        new_mask = out_c & ~(region > 0)                            # new relative to running result
+        result[sx:ex, sy:ey, sz:ez] = region | out_c
+        li, lj, lk = np.nonzero(new_mask)
+        added += int(li.size)
+        return np.stack([li + sx, lj + sy, lk + sz], axis=1).astype(np.int32).reshape(-1).tolist()
+
+    def _cancelled():
+        return cancel_event is not None and cancel_event.is_set()
 
     workers = _default_workers() if workers is None else max(1, int(workers))
+    done = 0
     if workers == 1:
-        for n, idx in enumerate(todo):
+        for idx in todo:
+            if _cancelled():
+                break
             _, out = _predict_out(idx)
-            _merge(idx, out)
-            yield {"done": n + 1, "total": total, "added": added}
+            new = _merge(idx, out)
+            done += 1
+            yield {"done": done, "total": total, "added": added, "new": new}
     else:
         from concurrent.futures import ThreadPoolExecutor, as_completed
-        with ThreadPoolExecutor(max_workers=workers) as executor:
+        executor = ThreadPoolExecutor(max_workers=workers)
+        try:
             futures = [executor.submit(_predict_out, idx) for idx in todo]
-            for n, fut in enumerate(as_completed(futures)):
+            for fut in as_completed(futures):
                 idx, out = fut.result()
-                _merge(idx, out)                                     # merge in this consumer only
-                yield {"done": n + 1, "total": total, "added": added}
+                new = _merge(idx, out)                              # merge in this single consumer -> no locks
+                done += 1
+                yield {"done": done, "total": total, "added": added, "new": new}
+                if _cancelled():
+                    break
+        finally:
+            # Cancel queued cubes; wait only for the few already in flight.
+            executor.shutdown(wait=True, cancel_futures=True)
 
-    yield {"done": total, "total": total, "added": added, "result": result}
+    # Final event carries the merged result (partial if cancelled) so the server
+    # can persist it as the new authoritative state (frontend stays a pure mirror).
+    yield {"done": done, "total": total, "added": added, "result": result, "cancelled": _cancelled()}
 
 
 # --------------------------------------------------------------------------- #
