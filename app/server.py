@@ -192,9 +192,15 @@ def get_full_inference():
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
 
+    # Optional ?workers=N to tune the parallel pool live (default: machine-sized).
+    try:
+        workers = int(request.args["workers"]) if "workers" in request.args else None
+    except (TypeError, ValueError):
+        workers = None
+
     def stream():
         try:
-            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext):
+            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext, workers=workers):
                 if "result" in ev:
                     result = ev.pop("result")
                     # Replace the authoritative state; everything the model added

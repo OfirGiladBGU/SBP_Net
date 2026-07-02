@@ -222,9 +222,15 @@ def reconstruct_at(volume: np.ndarray,
     }
 
 
+def _default_workers() -> int:
+    """A sensible thread count for parallel full inference on this machine."""
+    return max(1, min(8, (os.cpu_count() or 4)))
+
+
 def full_inference(volume: np.ndarray,
                    args: argparse.Namespace,
-                   source_ext: str = ".npy"):
+                   source_ext: str = ".npy",
+                   workers: int = None):
     """
     Run the paper's full stride-grid pipeline over the WHOLE volume, in memory.
 
@@ -233,6 +239,12 @@ def full_inference(volume: np.ndarray,
     the volume). This is a generator so the server can stream progress: it yields
     {"done", "total", "added"} after each processed cube, and finally
     {"done": total, "total": total, "added": <cum>, "result": <merged volume>}.
+
+    `workers` runs the per-cube inference in a thread pool (>1 = parallel, like the
+    offline `full_predict`). Per-cube work (projection, scipy continuity filter,
+    the 2D-model forward under torch.no_grad) releases the GIL, so threads overlap.
+    The OR-merge stays in this single consumer, so no locking is needed. Defaults
+    to a machine-sized pool; pass 1 to force sequential.
     """
     from configs.configs_parser import (
         DATA_3D_SIZE, DATA_3D_STRIDE,
@@ -260,11 +272,14 @@ def full_inference(volume: np.ndarray,
     total = len(todo)
     result = (volume > 0.5).astype(np.uint8)
     added = 0
-    for n, idx in enumerate(todo):
+
+    def _predict_out(idx):
         cube_bin = (cubes[idx] > 0.5).astype(np.float32)
         details = _predict_cube(cube_bin, args, source_ext)
-        out = (np.asarray(details["output_3d"]) > 0.5)
+        return idx, (np.asarray(details["output_3d"]) > 0.5)
 
+    def _merge(idx, out):
+        nonlocal added
         cd = cubes_data[idx]
         sx, sy, sz = cd["start_x"], cd["start_y"], cd["start_z"]
         ex, ey, ez = cd["end_x"], cd["end_y"], cd["end_z"]           # clamped to volume
@@ -273,7 +288,21 @@ def full_inference(volume: np.ndarray,
         merged = np.logical_or(region, out[:dx, :dy, :dz])
         added += int(np.count_nonzero(merged) - np.count_nonzero(region))
         result[sx:ex, sy:ey, sz:ez] = merged
-        yield {"done": n + 1, "total": total, "added": added}
+
+    workers = _default_workers() if workers is None else max(1, int(workers))
+    if workers == 1:
+        for n, idx in enumerate(todo):
+            _, out = _predict_out(idx)
+            _merge(idx, out)
+            yield {"done": n + 1, "total": total, "added": added}
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(_predict_out, idx) for idx in todo]
+            for n, fut in enumerate(as_completed(futures)):
+                idx, out = fut.result()
+                _merge(idx, out)                                     # merge in this consumer only
+                yield {"done": n + 1, "total": total, "added": added}
 
     yield {"done": total, "total": total, "added": added, "result": result}
 
