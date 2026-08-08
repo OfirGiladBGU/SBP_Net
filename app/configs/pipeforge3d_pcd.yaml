@@ -1,0 +1,8 @@
+# Demo dataset descriptor -- see app/app_configs.py.
+# Paths are relative to the repository root.
+LABEL: "PipeForge3D PCD"
+ORDER: 3
+
+CONFIG_FILENAME: "experiment1/PipeForge3DPCD_Best_LC_32.yaml"
+VOLUMES_PATH: "data/PipeForge3DPCD_Best/eval"
+DEFAULT_VOLUME_PATH: "data/PipeForge3DPCD_Best/eval/50.npy"

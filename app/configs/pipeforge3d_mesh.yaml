@@ -1,0 +1,8 @@
+# Demo dataset descriptor -- see app/app_configs.py.
+# Paths are relative to the repository root.
+LABEL: "PipeForge3D Mesh"
+ORDER: 2
+
+CONFIG_FILENAME: "experiment1/PipeForge3DMesh_Best_LC_32.yaml"
+VOLUMES_PATH: "data/PipeForge3DMesh_Best/eval"
+DEFAULT_VOLUME_PATH: "data/PipeForge3DMesh_Best/eval/50.npy"

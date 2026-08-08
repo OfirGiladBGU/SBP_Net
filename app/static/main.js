@@ -20,10 +20,13 @@ const M4 = {
     const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
     return [f / aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0];
   },
-  lookAt(eye, center, up) {
-    const z = norm(sub(eye, center)); const x = norm(cross(up, z)); const y = cross(z, x);
-    return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0,
-            -dot(x,eye),-dot(y,eye),-dot(z,eye),1];
+  // View matrix straight from a camera basis (right/up/back) + eye. Replaces a
+  // lookAt(eye, target, WORLD_UP): the basis comes from the trackball quaternion,
+  // so the camera keeps whatever orientation the user rotated into instead of
+  // being re-levelled to a fixed world up vector every frame.
+  viewFromBasis(right, up, back, eye) {
+    return [right[0],up[0],back[0],0, right[1],up[1],back[1],0, right[2],up[2],back[2],0,
+            -dot(right,eye),-dot(up,eye),-dot(back,eye),1];
   },
   multiply(a, b) {
     const o = new Array(16);
@@ -38,6 +41,54 @@ const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const len=(a)=>Math.hypot(a[0],a[1],a[2]);
 const norm=(a)=>{const l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];};
+
+// --------------------------------------------------------------------------- //
+// Quaternion helpers -- the camera ORIENTATION (trackball).                    //
+//                                                                             //
+// The camera used to be spherical angles (theta, phi) turned into a view with
+// lookAt(eye, target, WORLD_UP). That makes a drag rotate about the *global* Y
+// axis, so the motion stops matching what you see as soon as you orbit away
+// from the equator (and it gimbal-locks at the poles). Instead we keep a
+// quaternion for the camera frame and apply every drag delta about the camera's
+// OWN axes -- i.e. in view space, not model space -- so dragging always moves
+// the object in the direction of the cursor, from any viewpoint.
+// --------------------------------------------------------------------------- //
+const Q = {
+  identity: () => [0, 0, 0, 1],
+  // Rotation of `angle` radians about `axis` (axis must be unit length).
+  axisAngle(axis, angle) {
+    const s = Math.sin(angle / 2);
+    return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(angle / 2)];
+  },
+  // Hamilton product. `multiply(q, d)` applies d in q's LOCAL frame (post-
+  // multiply) -- that is the whole trick behind view-relative rotation.
+  multiply(a, b) {
+    const [ax,ay,az,aw] = a, [bx,by,bz,bw] = b;
+    return [ aw*bx + ax*bw + ay*bz - az*by,
+             aw*by - ax*bz + ay*bw + az*bx,
+             aw*bz + ax*by - ay*bx + az*bw,
+             aw*bw - ax*bx - ay*by - az*bz ];
+  },
+  normalize(q) {
+    const l = Math.hypot(q[0], q[1], q[2], q[3]) || 1;
+    return [q[0]/l, q[1]/l, q[2]/l, q[3]/l];
+  },
+  // Rotate a vector by the quaternion: v' = v + w*t + u x t, with t = 2 * (u x v).
+  rotate(q, v) {
+    const u = [q[0], q[1], q[2]], w = q[3];
+    const t = cross(u, v).map((c) => 2 * c);
+    const c = cross(u, t);
+    return [v[0] + w*t[0] + c[0], v[1] + w*t[1] + c[1], v[2] + w*t[2] + c[2]];
+  },
+  // Camera frame from yaw (about world Y) then pitch (about the camera's own X).
+  yawPitch(yaw, pitch) {
+    return Q.multiply(Q.axisAngle([0, 1, 0], yaw), Q.axisAngle([1, 0, 0], pitch));
+  },
+};
+
+// The opening three-quarter view: identical framing to the old spherical camera's
+// (azimuth 0.9, polar 1.1) starting pose, re-expressed as a camera orientation.
+const DEFAULT_ROT = () => Q.yawPitch(Math.PI / 2 - 0.9, 1.1 - Math.PI / 2);
 
 // --------------------------------------------------------------------------- //
 // Shaders (GLSL ES 3.00).                                                     //
@@ -233,8 +284,9 @@ class Demo {
     this.pickDepth = gl.createRenderbuffer();
     this._pickSize = [0, 0];
 
-    // Orbit camera state.
-    this.cam = { theta: 0.9, phi: 1.1, radius: 2.4, target: [0, 0, 0] };
+    // Trackball camera state: an orientation quaternion (not Euler angles) +
+    // distance to the target. Drags rotate `rot` about the camera's own axes.
+    this.cam = { rot: DEFAULT_ROT(), radius: 2.4, target: [0, 0, 0] };
     this.pointSize = 4.0;
     this.showRecon = true;
     this.renderMode = "voxels";   // "voxels" (lit cubes) or "points"
@@ -280,8 +332,8 @@ class Demo {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.types), gl.STATIC_DRAW);
   }
 
-  async loadVolume() {
-    const data = await (await fetch("/volume")).json();
+  /** Rebuild the whole cloud from a backend state snapshot. */
+  _applySnapshot(data, refit = false) {
     this.shape = data.shape;
     this.cubeSize = data.cube_size;
     this.center = [this.shape[0] / 2, this.shape[1] / 2, this.shape[2] / 2];
@@ -292,27 +344,195 @@ class Demo {
     this._appendVoxels(data.original, 0);
     this._appendVoxels(data.reconstructed, 1);
     this._uploadBuffers();
-    this.fit();
+    if (refit) this.fit();          // a different object: reframe the camera
     this._setMeta(data);
+  }
+
+  async loadVolume() {
+    const data = await (await fetch("/volume")).json();
+    this._applySnapshot(data, true);
     this._setStatus(`loaded ${data.name} — ${this.count.toLocaleString()} voxels`);
   }
 
-  // ----- camera ----------------------------------------------------------- //
-  _eye() {
-    const { theta, phi, radius, target } = this.cam;
-    const sp = Math.sin(phi);
-    return [ target[0] + radius * sp * Math.cos(theta),
-             target[1] + radius * Math.cos(phi),
-             target[2] + radius * sp * Math.sin(theta) ];
+  // ----- dataset / volume pickers ----------------------------------------- //
+  /** Populate both pickers from GET /configs (the app/configs/ descriptors). */
+  async loadConfigs() {
+    const data = await (await fetch("/configs")).json();
+    const cfgSel = document.getElementById("configSel");
+    const volSel = document.getElementById("volumeSel");
+
+    cfgSel.innerHTML = "";
+    for (const c of data.configs) {
+      const o = document.createElement("option");
+      o.value = c.name;
+      o.textContent = c.available ? c.label : `${c.label} (unavailable)`;
+      o.disabled = !c.available;
+      o.selected = c.name === data.active.config;
+      o.title = c.available ? c.config_filename : c.problems.join("; ");
+      cfgSel.appendChild(o);
+    }
+    // Without the supervisor there is no process to restart us (see server.py).
+    cfgSel.disabled = !data.supervised;
+    cfgSel.title = data.supervised
+      ? "Switching dataset restarts the backend on that config"
+      : "Started with --serve — dataset switching needs the supervisor";
+
+    const active = data.configs.find((c) => c.name === data.active.config);
+    volSel.innerHTML = "";
+    // A "Load file…" volume isn't in VOLUMES_PATH, so give it its own entry to
+    // sit on -- otherwise the picker would misleadingly show some other volume.
+    if (data.active.custom) {
+      const o = document.createElement("option");
+      o.value = "";                                     // no path: not re-selectable
+      o.textContent = `${data.active.volume_name} (loaded file)`;
+      o.selected = true;
+      volSel.appendChild(o);
+    }
+    for (const v of (active ? active.volumes : [])) {
+      const o = document.createElement("option");
+      o.value = v.path; o.textContent = v.name;
+      o.selected = v.path === data.active.volume;
+      volSel.appendChild(o);
+    }
+    volSel.disabled = volSel.options.length < 2;
   }
-  fit() { this.cam.target = [0, 0, 0]; this.cam.radius = 2.4; }
+
+  /** Same config, different volume -> no restart, the models stay loaded. */
+  async selectVolume(path) {
+    if (this.busy) return;
+    this._setBusy(true, "Loading volume…");
+    try {
+      const resp = await fetch("/volume/select", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { this._setStatus(`error: ${data.detail || data.error || resp.status}`); return; }
+      this._applySnapshot(data, true);
+      this._clearPanel();                       // the projections belong to the old volume
+      this._setStatus(`loaded ${data.name} — ${this.count.toLocaleString()} voxels`);
+    } catch (e) {
+      this._setStatus(`request failed: ${e}`);
+    } finally {
+      this._setBusy(false);
+    }
+  }
+
+  /** Load a volume the user picked from anywhere on their machine (no restart). */
+  async uploadVolume(file) {
+    if (!file || this.busy) return;
+    this._setBusy(true, `Loading ${file.name}…`);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const resp = await fetch("/volume/upload", { method: "POST", body: form });
+      const data = await resp.json();
+      if (!resp.ok) {
+        this._setStatus(`error: ${data.error || resp.status}${data.detail ? " — " + data.detail : ""}`);
+        return;
+      }
+      this._applySnapshot(data, true);
+      this._clearPanel();                       // the projections belong to the old volume
+      this._setStatus(`loaded ${data.name} — ${this.count.toLocaleString()} voxels`);
+    } catch (e) {
+      this._setStatus(`upload failed: ${e}`);
+    } finally {
+      this._setBusy(false);
+      try { await this.loadConfigs(); } catch (_) {}   // show it in the volume picker
+    }
+  }
+
+  /**
+   * Different config -> the backend restarts on it (the active config is fixed
+   * at import time; see the process-model note in server.py). Wait for the new
+   * worker to answer, then redraw from it.
+   */
+  async switchConfig(name) {
+    if (this.busy) return;
+    this._setBusy(true, "Switching dataset…");
+    try {
+      const resp = await fetch("/config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const detail = Array.isArray(data.detail) ? data.detail.join("; ") : (data.detail || "");
+        this._setStatus(`error: ${data.error || resp.status}${detail ? " — " + detail : ""}`);
+        await this.loadConfigs();               // re-sync the picker with reality
+        return;
+      }
+      this._setBusy(true, `Loading ${data.label} — restarting backend…`);
+      await this._waitForBackend();
+      await this.loadVolume();
+      await this.loadConfigs();
+      this._clearPanel();
+      this._setStatus(`dataset: ${data.label}`);
+    } catch (e) {
+      this._setStatus(`switch failed: ${e.message || e}`);
+      try { await this.loadConfigs(); } catch (_) {}
+    } finally {
+      this._setBusy(false);
+    }
+  }
+
+  /** Poll until the relaunched worker serves again (model load takes a while). */
+  async _waitForBackend(timeoutMs = 180000) {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await sleep(1500);                          // don't mistake the dying worker for the new one
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      try {
+        const r = await fetch("/volume", { cache: "no-store" });
+        if (r.ok) return true;
+      } catch (_) { /* still down */ }
+      await sleep(1000);
+    }
+    throw new Error("backend did not come back in time");
+  }
+
+  // ----- camera ----------------------------------------------------------- //
+  // The camera's own axes in world space. `back` points from target to eye
+  // (the +Z of view space), so eye = target + back * radius.
+  _axes() {
+    const q = this.cam.rot;
+    return { right: Q.rotate(q, [1, 0, 0]), up: Q.rotate(q, [0, 1, 0]), back: Q.rotate(q, [0, 0, 1]) };
+  }
+  _eye(axes) {
+    const { back } = axes || this._axes();
+    const { radius, target } = this.cam;
+    return [target[0] + back[0]*radius, target[1] + back[1]*radius, target[2] + back[2]*radius];
+  }
+
+  /**
+   * Rotate the camera by a drag delta expressed in SCREEN pixels.
+   *
+   * Both deltas are applied about the camera's LOCAL axes (yaw about its own up,
+   * pitch about its own right) by post-multiplying the orientation. That is what
+   * makes the rotation view-relative: dragging right always sweeps the object
+   * right across the screen, whatever the current viewpoint, with no pole
+   * singularity and no clamping.
+   */
+  rotateBy(dx, dy, speed = 0.008) {
+    const yaw = Q.axisAngle([0, 1, 0], -dx * speed);
+    const pitch = Q.axisAngle([1, 0, 0], -dy * speed);
+    this.cam.rot = Q.normalize(Q.multiply(this.cam.rot, Q.multiply(yaw, pitch)));
+  }
+
+  /** Roll about the view axis (the axis pointing at the viewer). */
+  rollBy(dx, speed = 0.008) {
+    this.cam.rot = Q.normalize(Q.multiply(this.cam.rot, Q.axisAngle([0, 0, 1], dx * speed)));
+  }
+
+  fit() { this.cam.target = [0, 0, 0]; this.cam.radius = 2.4; this.cam.rot = DEFAULT_ROT(); }
 
   // ----- rendering -------------------------------------------------------- //
   _matrices() {
     const gl = this.gl;
     const aspect = gl.drawingBufferWidth / Math.max(1, gl.drawingBufferHeight);
     const proj = M4.perspective(Math.PI / 4, aspect, 0.01, 100);
-    const view = M4.lookAt(this._eye(), this.cam.target, [0, 1, 0]);
+    const axes = this._axes();
+    const view = M4.viewFromBasis(axes.right, axes.up, axes.back, this._eye(axes));
     return { proj, view };
   }
 
@@ -445,18 +665,31 @@ class Demo {
     this._setBusy(true, "resetting…");
     try {
       const data = await (await fetch("/reset", { method: "POST" })).json();
-      this.positions = []; this.types = []; this.voxels = [];
-      this._appendVoxels(data.original, 0);
-      this._appendVoxels(data.reconstructed, 1);
-      this._uploadBuffers();
+      this._applySnapshot(data);            // same volume: keep the camera where it is
       this._setStatus(`reset — ${this.count.toLocaleString()} voxels`);
     } finally { this._setBusy(false); }
   }
 
   // ----- UI wiring -------------------------------------------------------- //
   _bindUI() {
+    document.getElementById("configSel").addEventListener("change", (e) => {
+      this.switchConfig(e.target.value);
+    });
+    document.getElementById("volumeSel").addEventListener("change", (e) => {
+      if (!e.target.value) return;              // the "(loaded file)" entry has no path
+      this.selectVolume(e.target.value);
+    });
+    document.getElementById("loadFileBtn").addEventListener("click", () => {
+      document.getElementById("fileInput").click();
+    });
+    document.getElementById("fileInput").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";                      // so re-picking the same file fires again
+      this.uploadVolume(file);
+    });
     document.getElementById("toggleVoxel").addEventListener("change", (e) => {
       this.renderMode = e.target.checked ? "voxels" : "points";
+      this._syncPointSize();
     });
     document.getElementById("pointSize").addEventListener("input", (e) => {
       this.pointSize = parseFloat(e.target.value);
@@ -471,6 +704,15 @@ class Demo {
     document.getElementById("flipBtn").addEventListener("click", () => {
       this._setFlip(this.flipSide === "after" ? "before" : "after");
     });
+    this._syncPointSize();
+  }
+
+  /** Point size drives gl_PointSize, which only the points renderer uses --
+   *  so the slider is live in points (PCD) mode and greyed out in voxel view. */
+  _syncPointSize() {
+    const on = this.renderMode === "points";
+    document.getElementById("pointSize").disabled = !on;
+    document.getElementById("pointSizeRow").classList.toggle("off", !on);
   }
 
   // ----- 2D projections panel --------------------------------------------- //
@@ -480,6 +722,13 @@ class Demo {
     b.className = side;
     b.innerHTML = `Showing: ${side === "after" ? "After" : "Before"} &nbsp;&#8635;`;
     this._renderPanel();
+  }
+
+  /** Hide the projections panel — its images belong to a volume we just left. */
+  _clearPanel() {
+    this.views = { before: {}, after: {} };
+    document.getElementById("views").innerHTML = "";
+    document.getElementById("panel").classList.remove("on");
   }
 
   _renderPanel() {
@@ -548,10 +797,13 @@ class Demo {
 
   _bindPointer() {
     const c = this.canvas;
-    let dragging = false, panning = false, lx = 0, ly = 0, moved = 0;
+    let dragging = false, panning = false, rolling = false, lx = 0, ly = 0, moved = 0;
     c.addEventListener("contextmenu", (e) => e.preventDefault());
     c.addEventListener("pointerdown", (e) => {
-      dragging = true; panning = e.button === 2 || e.shiftKey; lx = e.clientX; ly = e.clientY;
+      dragging = true;
+      panning = e.button === 2 || e.shiftKey;
+      rolling = !panning && (e.ctrlKey || e.altKey);
+      lx = e.clientX; ly = e.clientY;
       moved = 0; c.setPointerCapture(e.pointerId);
     });
     c.addEventListener("pointermove", (e) => {
@@ -559,20 +811,22 @@ class Demo {
       const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
       moved += Math.abs(dx) + Math.abs(dy);
       if (panning) {
+        // Pan along the camera's own screen axes, so the content tracks the cursor.
         const s = this.cam.radius * 0.0015;
-        const eye = this._eye(); const fwd = norm(sub(this.cam.target, eye));
-        const right = norm(cross(fwd, [0, 1, 0])); const up = cross(right, fwd);
+        const { right, up } = this._axes();
         this.cam.target = [ this.cam.target[0] - (right[0]*dx - up[0]*dy) * s,
                             this.cam.target[1] - (right[1]*dx - up[1]*dy) * s,
                             this.cam.target[2] - (right[2]*dx - up[2]*dy) * s ];
+      } else if (rolling) {
+        this.rollBy(dx);                      // Ctrl/Alt-drag: spin about the view axis
       } else {
-        this.cam.theta += dx * 0.008;
-        this.cam.phi = Math.min(Math.PI - 0.05, Math.max(0.05, this.cam.phi - dy * 0.008));
+        this.rotateBy(dx, dy);                // view-relative trackball
       }
     });
     c.addEventListener("pointerup", (e) => {
       dragging = false; c.releasePointerCapture(e.pointerId);
-      if (moved < 5 && e.button === 0 && !e.shiftKey) this._pickAndReconstruct(e.clientX, e.clientY);
+      const plainClick = e.button === 0 && !e.shiftKey && !e.ctrlKey && !e.altKey;
+      if (moved < 5 && plainClick) this._pickAndReconstruct(e.clientX, e.clientY);
     });
     c.addEventListener("wheel", (e) => {
       e.preventDefault();
@@ -597,8 +851,9 @@ class Demo {
   }
   _setStatus(s) { document.getElementById("status").textContent = s; }
   _setMeta(d) {
+    const cfg = d.config_label ? `${d.config_label} &middot; ` : "";
     document.getElementById("meta").innerHTML =
-      `volume <b>${d.name}</b> &middot; ${d.shape.join("×")} &middot; cube ${d.cube_size}³`;
+      `${cfg}volume <b>${d.name}</b> &middot; ${d.shape.join("×")} &middot; cube ${d.cube_size}³`;
   }
 
   _resize() {
@@ -614,6 +869,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const demo = new Demo(document.getElementById("gl"));
     window._demo = demo;
     await demo.loadVolume();
+    await demo.loadConfigs();
   } catch (e) {
     document.getElementById("status").textContent = "init error: " + e.message;
     console.error(e);

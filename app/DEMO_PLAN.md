@@ -178,6 +178,40 @@ that is where the real work is — solve it here, in a 10-line test, not later.
   good "here's what the model saw" storytelling.
 - (Optional, last) Export intermediate projections to a chosen output path.
 
+### Phase 6 — Cache full-inference results — **DEFERRED, not built yet**
+
+Full inference (`GET /full_inference`) runs the paper's whole stride grid over the
+volume and is by far the most expensive thing the demo does. Today every run
+recomputes from scratch, so re-running it, reloading the page, switching volume
+and coming back, or restarting on a config switch all pay the full cost again —
+exactly the wrong thing to be doing live in front of an audience.
+
+**We want to cache the merged full-inference result and reuse it.** Deliberately
+deferred: the demo works without it, and it must not complicate the click loop.
+
+When it is picked up:
+
+- **Key the cache on everything that changes the answer**: the dataset descriptor
+  / `CONFIG_FILENAME`, the volume's identity *and* content, and the pipeline
+  parameters that affect the grid (`DATA_3D_SIZE`, `DATA_3D_STRIDE`, the density
+  thresholds, the `APPLY_*` filter flags). A stale hit that silently serves
+  another config's result is worse than no cache at all — the same failure mode
+  the worker's config-mismatch guard exists to prevent.
+- **Cache the merged volume, not per-cube outputs.** That is the expensive,
+  reusable artifact; per-cube caching buys little and multiplies invalidation.
+- **Only cache complete runs.** A cancelled run yields a deliberately partial
+  volume — either don't store it, or mark it partial and never serve it as
+  finished.
+- **A cache hit must still drive the live-fill animation**, otherwise the demo
+  loses its best visual. Replay the cached voxels as progress events instead of
+  dumping the final state in one frame.
+- **Keep it off the click path** (constraint 5). Cache I/O belongs to the batch
+  full-inference path only; `POST /reconstruct` stays purely in memory.
+- Custom volumes loaded via **Load file…** have no stable on-disk identity —
+  either key them by content hash or skip caching them.
+- Decide where it lives (a `data_results/` subfolder vs. a temp dir) and how it
+  gets invalidated/cleared from the UI.
+
 ---
 
 ## Sequencing discipline
@@ -187,6 +221,9 @@ that is where the real work is — solve it here, in a 10-line test, not later.
   loop works end-to-end, or the renderer will eat the time the reconstruction loop
   needs.
 - Optional features (projection export) must not gate or complicate the core.
+- Full-inference caching (Phase 6) is deferred on purpose. It is a speed
+  optimization for the batch path only — it must never be a prerequisite for the
+  click→reconstruct loop, and it must not put disk I/O on that loop.
 
 ## Out of scope / known non-issues
 

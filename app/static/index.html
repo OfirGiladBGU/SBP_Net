@@ -26,6 +26,13 @@
       display: flex; flex-direction: column; gap: 10px; width: 220px; user-select: none; }
     #controls label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     #controls input[type=range] { flex: 1; }
+    #controls select { flex: 1; min-width: 0; background: #1b2233; color: var(--fg);
+      border: 1px solid #33405c; border-radius: 6px; padding: 5px 6px; font-size: 12px; }
+    #controls select:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Point size only applies to the points renderer -- greyed out in voxel view. */
+    #controls label.off { opacity: 0.45; }
+    #controls label.off input { cursor: not-allowed; }
+    #controls .sep { border-top: 1px solid #2a3145; margin: 2px 0; }
     #controls .row { display: flex; gap: 8px; }
     button { flex: 1; cursor: pointer; background: #1b2233; color: var(--fg); border: 1px solid #33405c;
       padding: 8px 10px; border-radius: 8px; font-size: 13px; }
@@ -74,14 +81,22 @@
       <span><i class="dot hi"></i> last</span>
     </div>
     <div class="meta" style="margin-top:8px">
-      Drag: orbit &nbsp;&middot;&nbsp; Wheel: zoom &nbsp;&middot;&nbsp; Right/Shift-drag: pan<br/>
+      Drag: rotate &nbsp;&middot;&nbsp; Wheel: zoom &nbsp;&middot;&nbsp; Right/Shift-drag: pan<br/>
+      Ctrl/Alt-drag: roll &nbsp;&middot;&nbsp; Recenter resets the view<br/>
       <b>Click a point</b> to reconstruct a cube around it.
     </div>
   </div>
 
   <div id="controls">
+    <label><span>Dataset</span><select id="configSel"></select></label>
+    <label><span>Volume</span><select id="volumeSel"></select></label>
+    <button id="loadFileBtn" title="Load a volume from anywhere on this machine — it does not have to be in the dataset's folder">Load file&hellip;</button>
+    <!-- Hidden: the button drives it, so the control panel keeps one visual style. -->
+    <input id="fileInput" type="file" style="display:none"
+           accept=".nii.gz,.npy,.npz,.pcd,.ply,.off,.obj,.binvox" />
+    <div class="sep"></div>
     <label><span>Voxel view (lit)</span><input id="toggleVoxel" type="checkbox" checked /></label>
-    <label>Point size <input id="pointSize" type="range" min="1" max="12" step="0.5" value="4" /></label>
+    <label id="pointSizeRow">Point size <input id="pointSize" type="range" min="1" max="12" step="0.5" value="4" /></label>
     <label><span>Show reconstructed</span><input id="toggleRecon" type="checkbox" checked /></label>
     <div class="row">
       <button id="resetBtn">Reset</button>

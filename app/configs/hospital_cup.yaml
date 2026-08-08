@@ -1,0 +1,8 @@
+# Demo dataset descriptor -- see app/app_configs.py.
+# Paths are relative to the repository root.
+LABEL: "Hospital CUP"
+ORDER: 4
+
+CONFIG_FILENAME: "experiment1/HospitalCUP_LC_32.yaml"
+VOLUMES_PATH: "data/HospitalPCD_V7/eval"
+DEFAULT_VOLUME_PATH: "data/HospitalPCD_V7/eval/Hospital CUP 1in3.npy"

@@ -7,9 +7,22 @@ volume + model once at startup (pre-warm), crops every reconstruction from the
 A single-flight lock serializes reconstructions (constraint 3). Everything runs
 locally and headless -- no VTK, no rendering in Python.
 
-Run:
+Datasets are declared in app/configs/*.yaml (see app/app_configs.py), so the UI
+can offer a dataset picker instead of anything being hardcoded here.
+
     conda run -n TAE --no-capture-output python app/server.py
     # then open http://127.0.0.1:5000/
+
+PROCESS MODEL -- why there are two processes:
+    configs_parser.py computes every constant at import time and ~20 modules do
+    `from configs.configs_parser import *`, which COPIES those values into their
+    own namespace. So the active config cannot be changed once it is imported.
+    Running `python app/server.py` therefore starts a small SUPERVISOR, which
+    launches a WORKER (`--serve`) with SBP_CONFIG_FILENAME set for the chosen
+    dataset. Switching datasets in the UI makes the worker exit with
+    _SWITCH_EXIT_CODE; the supervisor relaunches it on the new config. That
+    keeps the config guaranteed-consistent instead of half-reloaded.
+    Switching only the *volume* needs no restart -- see POST /volume/select.
 
 All heavy lifting lives in app/reconstruct_core.reconstruct_at.
 """
@@ -21,25 +34,34 @@ import argparse
 import base64
 import json
 import pathlib
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
+import time
 
 import cv2
 import numpy as np
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
+from werkzeug.utils import secure_filename
 
 ROOT_PATH = str(pathlib.Path(__file__).absolute().parent.parent)
 if ROOT_PATH not in sys.path:
     sys.path.append(ROOT_PATH)
 
-from app.reconstruct_core import (
-    CUBE_SIZE,
-    build_args,
-    full_inference,
-    init_models,
-    load_demo_volume,
-    reconstruct_at,
-)
+from app import app_configs
+
+# NOTE: app.reconstruct_core (torch + configs_parser) is imported lazily by
+# init_state(). The supervisor runs this same file and must NOT pull the
+# pipeline in -- it has to pick the config *before* configs_parser is imported.
+CORE = None
+
+# Worker exit code meaning "relaunch me on a different config" (see _supervise).
+_SWITCH_EXIT_CODE = 42
+# Set by the supervisor on the worker's environment; without it a restart would
+# never come back, so POST /config refuses instead of killing the server.
+_SUPERVISED_ENV = "SBP_DEMO_SUPERVISED"
 
 
 def _png_data_url(image: np.ndarray, upscale: int = 4) -> str:
@@ -63,23 +85,47 @@ def _encode_views(views: dict) -> dict:
 
 STATIC_DIR = pathlib.Path(__file__).absolute().parent.joinpath("static")
 
+# Cap for "Load file…" uploads. The bundled eval volumes are 0.4-5.5 MB, so this
+# is roomy; it exists so a mis-drop can't buffer something enormous.
+MAX_UPLOAD_MB = 512
+
 app = Flask(__name__, static_folder=None)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+
+
+@app.errorhandler(413)
+def _upload_too_large(_):
+    """Keep the frontend on the JSON path even when Flask rejects the body."""
+    return jsonify({"error": "file too large", "detail": f"limit is {MAX_UPLOAD_MB} MB"}), 413
 
 
 class DemoState:
     """Authoritative volume state held in memory by the backend."""
 
-    def __init__(self, volume: np.ndarray, name: str, args, source_ext: str = ".npy"):
-        self.name = name
+    def __init__(self, config, args, volume: np.ndarray, name: str,
+                 source_ext: str = ".npy", volume_path=None):
+        self.config = config                                  # the app/configs/ descriptor in use
         self.args = args
-        self.source_ext = source_ext                          # projection convention (constraint 4)
-        self.original = (volume > 0.5).astype(np.uint8)      # immutable reference
-        self.volume = self.original.copy()                    # current state (mutated)
-        self.reconstructed = np.zeros_like(self.original)     # voxels added by the model
         # The lock IS the concurrency guard: one reconstruction in flight (constraint 3).
         self.lock = threading.Lock()
         # Set by POST /full_inference/cancel to stop an in-flight full run early.
         self.cancel_event = threading.Event()
+        self.load_volume(volume, name, source_ext, volume_path)
+
+    def load_volume(self, volume: np.ndarray, name: str, source_ext: str,
+                    volume_path=None, custom: bool = False):
+        """(Re)seat the authoritative volume. The models are untouched -- they
+        depend on the config, not on which volume of it is being shown.
+
+        `custom` marks a volume loaded through "Load file…" -- it is not one of
+        the dataset's VOLUMES_PATH entries, so it has no selectable path."""
+        self.name = name
+        self.custom = custom
+        self.volume_path = None if custom else (app_configs._rel(volume_path) if volume_path else None)
+        self.source_ext = source_ext                          # projection convention (constraint 4)
+        self.original = (volume > 0.5).astype(np.uint8)       # immutable reference
+        self.volume = self.original.copy()                    # current state (mutated)
+        self.reconstructed = np.zeros_like(self.original)     # voxels added by the model
 
     def occupied_coords(self, mask: np.ndarray):
         """Flat [x0,y0,z0,x1,y1,z1,...] int list of occupied voxels in `mask`."""
@@ -91,7 +137,11 @@ class DemoState:
         return {
             "name": self.name,
             "shape": [int(s) for s in self.volume.shape],
-            "cube_size": int(CUBE_SIZE),
+            "cube_size": int(CORE.CUBE_SIZE),
+            "config": self.config.name,
+            "config_label": self.config.label,
+            "volume_path": self.volume_path,
+            "custom_volume": bool(self.custom),
             "original": self.occupied_coords(original_only),
             "reconstructed": self.occupied_coords(self.reconstructed),
         }
@@ -104,15 +154,34 @@ class DemoState:
 STATE: DemoState = None  # populated by init_state() at startup
 
 
-def init_state(volume_path=None, use_cuda: bool = True):
-    global STATE
-    volume, name, source_ext = load_demo_volume(volume_path)
-    args = build_args(use_cuda=use_cuda)
-    init_models(args)  # pre-warm: load the model weights once
-    STATE = DemoState(volume=volume, name=name, args=args, source_ext=source_ext)
+def init_state(config, volume_path=None, use_cuda: bool = True):
+    """Import the pipeline (binding configs_parser to `config`), then pre-warm."""
+    global STATE, CORE
+
+    from app import reconstruct_core
+    CORE = reconstruct_core
+
+    # Fail loudly rather than serve one config's weights under another's name:
+    # a silently mismatched config produces plausible-looking wrong results.
+    from configs.configs_parser import CONFIG_FILENAME as ACTIVE_CONFIG_FILENAME
+    if ACTIVE_CONFIG_FILENAME != config.config_filename:
+        raise RuntimeError(
+            f"Config mismatch: descriptor '{config.name}' expects "
+            f"'{config.config_filename}' but configs_parser loaded "
+            f"'{ACTIVE_CONFIG_FILENAME}'. Launch via `python app/server.py` so the "
+            f"supervisor can set SBP_CONFIG_FILENAME."
+        )
+
+    resolved = config.resolve_volume(volume_path)
+    volume, name, source_ext = CORE.load_demo_volume(resolved)
+    args = CORE.build_args(use_cuda=use_cuda)
+    CORE.init_models(args)  # pre-warm: load the model weights once
+    STATE = DemoState(config=config, args=args, volume=volume, name=name,
+                      source_ext=source_ext, volume_path=resolved)
     print(
-        f"[Server] Ready. volume={name} shape={STATE.volume.shape} occupied={int(STATE.original.sum())} "
-        f"cube_size={CUBE_SIZE} source_ext={source_ext} device={args.device}"
+        f"[Server] Ready. config={config.name} ({config.config_filename}) volume={name} "
+        f"shape={STATE.volume.shape} occupied={int(STATE.original.sum())} "
+        f"cube_size={CORE.CUBE_SIZE} source_ext={source_ext} device={args.device}"
     )
     return STATE
 
@@ -139,6 +208,147 @@ def get_volume():
     return jsonify(STATE.snapshot())
 
 
+@app.route("/configs", methods=["GET"])
+def get_configs():
+    """Every dataset in app/configs/ + which one is live, for the pickers."""
+    return jsonify({
+        "active": {
+            "config": STATE.config.name,
+            "volume": STATE.volume_path,          # None for a "Load file…" volume
+            "volume_name": STATE.name,
+            "custom": bool(STATE.custom),
+        },
+        "configs": [cfg.to_dict() for cfg in app_configs.list_configs()],
+        # False => POST /config can't restart, so the UI hides the dataset picker.
+        "supervised": os.environ.get(_SUPERVISED_ENV) == "1",
+    })
+
+
+@app.route("/config", methods=["POST"])
+def post_config():
+    """
+    Body: {"name": <descriptor>, "volume": <repo-relative path, optional>}.
+    Switches the active dataset. The config is baked in at import time, so this
+    asks the supervisor for a clean restart on the new config: the response is
+    sent, then this worker exits with _SWITCH_EXIT_CODE and is relaunched. The
+    client should poll GET /volume until the new worker answers.
+    """
+    if os.environ.get(_SUPERVISED_ENV) != "1":
+        return jsonify({"error": "unsupervised",
+                        "detail": "started with --serve; run `python app/server.py` "
+                                  "so a supervisor can restart the worker"}), 501
+
+    payload = request.get_json(force=True, silent=True) or {}
+    name = payload.get("name")
+    config = app_configs.get_config(name) if name else None
+    if config is None:
+        return jsonify({"error": f"unknown config '{name}'"}), 400
+    problems = config.problems()
+    if problems:
+        return jsonify({"error": f"config '{name}' is not usable", "detail": problems}), 400
+
+    # `volume` is optional (the dataset's default is used); but if one is named
+    # explicitly it must be real -- don't restart onto a different volume silently.
+    requested_volume = payload.get("volume")
+    if requested_volume and config.find_volume(requested_volume) is None:
+        return jsonify({"error": f"'{requested_volume}' is not a volume of dataset "
+                                 f"'{config.name}'"}), 400
+
+    # Don't tear the process down underneath a running reconstruction.
+    if not STATE.lock.acquire(blocking=False):
+        return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
+    # NOTE: the lock is deliberately never released -- this process is going away,
+    # and holding it stops anything new from starting during the handover.
+
+    volume = config.resolve_volume(requested_volume)
+    _request_switch(config.name, volume)
+    return jsonify({
+        "restarting": True,
+        "config": config.name,
+        "label": config.label,
+        "volume": app_configs._rel(volume) if volume else None,
+    })
+
+
+@app.route("/volume/select", methods=["POST"])
+def post_volume_select():
+    """
+    Body: {"path": <repo-relative path within the active config's VOLUMES_PATH>}.
+    Swaps the volume WITHOUT a restart -- same config, so the loaded models stay
+    valid. Returns the new state snapshot. 409 if a reconstruction is in flight.
+    """
+    payload = request.get_json(force=True, silent=True) or {}
+    requested = payload.get("path")
+    # Strict: an unknown path is an error, never a silent fallback to another volume.
+    resolved = STATE.config.find_volume(requested)
+    if resolved is None:
+        return jsonify({"error": f"'{requested}' is not a volume of dataset "
+                                 f"'{STATE.config.name}'"}), 400
+
+    if not STATE.lock.acquire(blocking=False):
+        return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
+    try:
+        volume, name, source_ext = CORE.load_demo_volume(resolved)
+        STATE.load_volume(volume, name, source_ext, resolved)
+        print(f"[Server] Volume -> {name} shape={STATE.volume.shape} "
+              f"occupied={int(STATE.original.sum())} source_ext={source_ext}")
+        return jsonify(STATE.snapshot())
+    finally:
+        STATE.lock.release()
+
+
+@app.route("/volume/upload", methods=["POST"])
+def post_volume_upload():
+    """
+    Multipart `file` field: load ANY volume the user picks, from anywhere on
+    their machine -- it does not have to live in the dataset's VOLUMES_PATH.
+    Same config, so the loaded models stay valid and there is no restart.
+
+    The bytes are written to a temp file and read with the project's own loader,
+    then the temp copy is dropped (the volume lives in memory from then on).
+    The original extension is preserved on that temp file on purpose: it selects
+    the projection rotation convention (constraint 4), so renaming a .nii.gz to
+    .npy would silently project it the wrong way.
+    """
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        return jsonify({"error": "expected a multipart 'file' field"}), 400
+
+    original = pathlib.Path(upload.filename).name          # ignore any client path
+    if not original.lower().endswith(app_configs.VOLUME_EXTENSIONS):
+        return jsonify({
+            "error": f"unsupported file type: {original}",
+            "detail": f"expected one of {', '.join(app_configs.VOLUME_EXTENSIONS)}",
+        }), 400
+
+    # secure_filename strips separators/oddities; keep the extension it may drop.
+    safe = secure_filename(original) or "upload"
+    if not safe.lower().endswith(app_configs.VOLUME_EXTENSIONS):
+        ext = next(e for e in app_configs.VOLUME_EXTENSIONS if original.lower().endswith(e))
+        safe = f"upload{ext}"
+
+    if not STATE.lock.acquire(blocking=False):
+        return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
+
+    tmpdir = None
+    try:
+        tmpdir = tempfile.mkdtemp(prefix="sbp_demo_upload_")
+        tmp_path = pathlib.Path(tmpdir).joinpath(safe)
+        upload.save(str(tmp_path))
+        volume, _, source_ext = CORE.load_demo_volume(tmp_path)
+        # Report the name the user recognises, not the sanitized temp one.
+        STATE.load_volume(volume, original, source_ext, custom=True)
+        print(f"[Server] Volume -> {original} (uploaded) shape={STATE.volume.shape} "
+              f"occupied={int(STATE.original.sum())} source_ext={source_ext}")
+        return jsonify(STATE.snapshot())
+    except Exception as exc:
+        return jsonify({"error": f"could not load '{original}'", "detail": str(exc)}), 400
+    finally:
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        STATE.lock.release()
+
+
 @app.route("/reconstruct", methods=["POST"])
 def post_reconstruct():
     """
@@ -160,7 +370,7 @@ def post_reconstruct():
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
     try:
-        result = reconstruct_at(STATE.volume, x, y, z, STATE.args, source_ext=STATE.source_ext)
+        result = CORE.reconstruct_at(STATE.volume, x, y, z, STATE.args, source_ext=STATE.source_ext)
         new_coords = result["new_coords"]
         if len(new_coords):
             gi, gj, gk = new_coords[:, 0], new_coords[:, 1], new_coords[:, 2]
@@ -206,8 +416,8 @@ def get_full_inference():
 
     def stream():
         try:
-            for ev in full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext,
-                                     workers=workers, cancel_event=STATE.cancel_event):
+            for ev in CORE.full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext,
+                                          workers=workers, cancel_event=STATE.cancel_event):
                 if "result" in ev:
                     result = ev.pop("result")
                     # Replace the authoritative state; everything the model added
@@ -243,27 +453,124 @@ def post_reset():
     return jsonify(STATE.snapshot())
 
 
-def main():
-    # NOTE:
-    # CONFIG_FILENAME = "experiment_sota/parse2022_LC_32_50_ours_eval.yaml" - PARSE2022
-    # CONFIG_FILENAME = "experiment1/PipeForge3DMesh_Best_LC_32.yaml" - PipeForge3D Mesh
-    # CONFIG_FILENAME = "experiment1/PipeForge3DPCD_Best_LC_32.yaml" - PipeForge3D PCD
+# --------------------------------------------------------------------------- #
+# Supervisor: owns the worker process so the config can be swapped cleanly.   #
+# --------------------------------------------------------------------------- #
+def _switch_file(port: int) -> pathlib.Path:
+    """Where a worker leaves the dataset it wants to be relaunched on."""
+    return pathlib.Path(tempfile.gettempdir()).joinpath(f"sbp_demo_switch_{port}.json")
 
-    # VOLUME_PATH = r".\data\PipeForge3DMesh_Best\eval\50.npy"
-    VOLUME_PATH =  r".\data\parse2022_32\eval\PA000150_vessel.nii.gz"
 
-    parser = argparse.ArgumentParser(description="SBP-Net interactive demo server")
-    parser.add_argument("--volume", type=str, default=VOLUME_PATH, help="Path to a .npy volume to load")
-    parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=5000)
-    parser.add_argument("--no-cuda", action="store_true", default=False)
-    cli = parser.parse_args()
+def _request_switch(config_name: str, volume_path):
+    """Record the requested dataset, then exit so the supervisor relaunches us.
 
-    init_state(volume_path=cli.volume, use_cuda=not cli.no_cuda)
+    The delay lets Flask flush the response first; os._exit skips interpreter
+    cleanup so the port is released immediately (and no half-torn-down pipeline
+    can keep running).
+    """
+    payload = {"config": config_name, "volume": str(volume_path) if volume_path else None}
+    _switch_file(_PORT).write_text(json.dumps(payload))
+    print(f"[Server] Switching to config '{config_name}' -- restarting worker.")
+    threading.Timer(0.5, lambda: os._exit(_SWITCH_EXIT_CODE)).start()
+
+
+_PORT = 5000  # set by _serve(); used by _request_switch to name the switch file
+
+
+def _serve(cli):
+    """Worker process: SBP_CONFIG_FILENAME is already set by the supervisor."""
+    global _PORT
+    _PORT = cli.port
+
+    config = app_configs.get_config(cli.config)
+    if config is None:
+        raise SystemExit(f"[Server] Unknown dataset '{cli.config}'. "
+                         f"Available: {[c.name for c in app_configs.list_configs()]}")
+
+    init_state(config=config, volume_path=cli.volume, use_cuda=not cli.no_cuda)
     # threaded=True so the single-flight lock (not the server) governs concurrency;
     # use_reloader=False so the heavy model is not loaded twice.
     app.run(host=cli.host, port=cli.port, threaded=True, use_reloader=False, debug=False)
 
 
+def _supervise(cli):
+    """
+    Parent process: run a worker, and relaunch it whenever it asks for a
+    different dataset. Nothing heavy is imported here -- picking the config has
+    to happen before configs_parser is imported anywhere (see module docstring).
+    """
+    switch_file = _switch_file(cli.port)
+    switch_file.unlink(missing_ok=True)                 # ignore a stale request
+    selection = {"config": cli.config, "volume": cli.volume}
+
+    while True:
+        config = app_configs.get_config(selection["config"])
+        if config is None:
+            config = app_configs.default_config()
+            print(f"[Supervisor] Unknown dataset '{selection['config']}', "
+                  f"falling back to '{config.name}'.")
+        problems = config.problems()
+        if problems:
+            print(f"[Supervisor] Dataset '{config.name}' is not usable: {'; '.join(problems)}")
+            return 1
+
+        cmd = [sys.executable, os.path.abspath(__file__), "--serve",
+               "--config", config.name, "--host", cli.host, "--port", str(cli.port)]
+        if selection.get("volume"):
+            cmd += ["--volume", str(selection["volume"])]
+        if cli.no_cuda:
+            cmd.append("--no-cuda")
+
+        # The worker inherits the chosen config through the environment, so
+        # configs_parser binds to it at its very first import.
+        env = dict(os.environ,
+                   SBP_CONFIG_FILENAME=config.config_filename,
+                   **{_SUPERVISED_ENV: "1"})
+
+        print(f"[Supervisor] Starting worker: dataset={config.name} "
+              f"config={config.config_filename}")
+        proc = subprocess.Popen(cmd, env=env)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:
+            proc.terminate()
+            proc.wait()
+            return 0
+
+        if code != _SWITCH_EXIT_CODE:
+            return code
+
+        if switch_file.is_file():
+            try:
+                selection = json.loads(switch_file.read_text())
+            except json.JSONDecodeError:
+                pass                                    # keep the current selection
+            switch_file.unlink(missing_ok=True)
+        time.sleep(1.0)                                 # let the port drain before rebinding
+
+
+def main():
+    default_config = app_configs.default_config()
+
+    parser = argparse.ArgumentParser(description="SBP-Net interactive demo server")
+    parser.add_argument("--config", type=str, default=default_config.name,
+                        help=f"Dataset from app/configs/ "
+                             f"(available: {', '.join(c.name for c in app_configs.list_configs())})")
+    parser.add_argument("--volume", type=str, default=None,
+                        help="Volume to load (defaults to the dataset's DEFAULT_VOLUME_PATH)")
+    parser.add_argument("--host", type=str, default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--no-cuda", action="store_true", default=False)
+    parser.add_argument("--serve", action="store_true", default=False,
+                        help="Internal: run the worker directly, without a supervisor "
+                             "(the dataset picker is then disabled)")
+    cli = parser.parse_args()
+
+    if cli.serve:
+        _serve(cli)
+        return 0
+    return _supervise(cli)
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

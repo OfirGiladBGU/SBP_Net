@@ -1,0 +1,14 @@
+# Demo dataset descriptor -- see app/app_configs.py.
+# Paths are relative to the repository root.
+LABEL: "PARSE2022 (pulmonary vessels)"
+ORDER: 1
+
+# The configs/ file that configs_parser.py should load for this dataset.
+CONFIG_FILENAME: "experiment_sota/parse2022_LC_32_50_ours_eval.yaml"
+
+# Folder scanned to populate the volume picker.
+VOLUMES_PATH: "data/parse2022/eval"
+
+# Loaded on startup when this dataset is selected (falls back to the first
+# volume in VOLUMES_PATH if it is missing).
+DEFAULT_VOLUME_PATH: "data/parse2022/eval/PA000310_vessel.nii.gz"

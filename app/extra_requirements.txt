@@ -14,7 +14,7 @@
 # Core #
 
 pip install flask  # local headless server for app/server.py (only extra needed)
-
+pip install h5py  # for reading/writing .h5 files (used in app/)
 
 # Notes #
 
@@ -31,3 +31,4 @@ pip install flask  # local headless server for app/server.py (only extra needed)
 
 flask     3.1.2
 werkzeug  3.1.5
+h5py      3.16.0
