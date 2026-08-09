@@ -38,6 +38,9 @@
       padding: 8px 10px; border-radius: 8px; font-size: 13px; }
     button:hover { background: #232c42; } button:active { background: #2c3654; }
     button.toggled { background: #2b3d63; border-color: var(--accent); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; background: #1b2233; }
+    /* A cached result is instant -- make it look like the fast path. */
+    #cacheBtn:not(:disabled) { border-color: #43d17a; }
 
     #status { position: fixed; bottom: 12px; left: 12px; padding: 8px 12px; background: var(--panel);
       border: 1px solid #2a3145; border-radius: 8px; font-size: 12px; color: #9aa4bb; z-index: 9; }
@@ -103,6 +106,7 @@
       <button id="fitBtn">Recenter</button>
     </div>
     <button id="fullBtn">Run Full Inference</button>
+    <button id="cacheBtn" disabled>Load Cached Result</button>
   </div>
 
   <div id="status">ready</div>

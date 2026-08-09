@@ -178,39 +178,56 @@ that is where the real work is — solve it here, in a 10-line test, not later.
   good "here's what the model saw" storytelling.
 - (Optional, last) Export intermediate projections to a chosen output path.
 
-### Phase 6 — Cache full-inference results — **DEFERRED, not built yet**
+### Phase 6 — Cache full-inference results
 
 Full inference (`GET /full_inference`) runs the paper's whole stride grid over the
-volume and is by far the most expensive thing the demo does. Today every run
-recomputes from scratch, so re-running it, reloading the page, switching volume
-and coming back, or restarting on a config switch all pay the full cost again —
-exactly the wrong thing to be doing live in front of an audience.
+volume and is by far the most expensive thing the demo does. Recomputing it live
+in front of an audience is exactly the wrong thing to be doing.
 
-**We want to cache the merged full-inference result and reuse it.** Deliberately
-deferred: the demo works without it, and it must not complicate the click loop.
+**Slice 1 — DONE.** `app/cache_store.py` + `app/cache/`. A complete run on a
+pristine dataset volume is stored and replayed instantly next time. Measured on
+`parse2022/PA000310_vessel.nii.gz`: 2 628 cubes / 25 179 voxels, **122 s → 2.6 s
+(47×)**, 28 KB on disk, byte-identical voxel set.
 
-When it is picked up:
+How it came out against the requirements set here:
 
-- **Key the cache on everything that changes the answer**: the dataset descriptor
-  / `CONFIG_FILENAME`, the volume's identity *and* content, and the pipeline
-  parameters that affect the grid (`DATA_3D_SIZE`, `DATA_3D_STRIDE`, the density
-  thresholds, the `APPLY_*` filter flags). A stale hit that silently serves
-  another config's result is worse than no cache at all — the same failure mode
+- **Keyed on everything that changes the answer** — the descriptor,
+  `CONFIG_FILENAME`, the volume's content hash *and* shape, the schema version,
+  and the grid/filter params (`DATA_3D_SIZE`, `DATA_3D_STRIDE`, density
+  thresholds, `APPLY_*`, thresholds, connectivity, weights paths). Any mismatch
+  is a miss with a printed reason; `GET /cache` reports it. A stale hit serving
+  another config's result would be worse than no cache — the same failure mode
   the worker's config-mismatch guard exists to prevent.
-- **Cache the merged volume, not per-cube outputs.** That is the expensive,
-  reusable artifact; per-cube caching buys little and multiplies invalidation.
-- **Only cache complete runs.** A cancelled run yields a deliberately partial
-  volume — either don't store it, or mark it partial and never serve it as
-  finished.
-- **A cache hit must still drive the live-fill animation**, otherwise the demo
-  loses its best visual. Replay the cached voxels as progress events instead of
-  dumping the final state in one frame.
-- **Keep it off the click path** (constraint 5). Cache I/O belongs to the batch
-  full-inference path only; `POST /reconstruct` stays purely in memory.
-- Custom volumes loaded via **Load file…** have no stable on-disk identity —
-  either key them by content hash or skip caching them.
-- Decide where it lives (a `data_results/` subfolder vs. a temp dir) and how it
-  gets invalidated/cleared from the UI.
+- **Stores the added voxels, not the merged volume** — that is the artifact the
+  frontend draws, it compresses far better than a 512³ array, and the merged
+  state is just `original | added`. (The plan said "merged volume, not per-cube";
+  added-voxels is the same idea one step more compact, and still one entry per
+  volume.)
+- **Only complete runs.** A cancelled run is partial and is never stored.
+- **A hit still drives the live fill** — the cache replays as the same chunked
+  progress events, so the volume fills in instead of appearing in one frame.
+- **Off the click path** (constraint 5). `POST /reconstruct` stays in memory;
+  cache I/O exists only on the batch path.
+- **Not cached:** volumes loaded via *Load file…* (no stable identity), and runs
+  started on top of click reconstructions — valid to do, but not the artifact we
+  cache, and they must not overwrite the pristine entry. `?refresh=1` recomputes.
+
+**Slice 2 — DONE.** UI control, kept explicit so nothing is a surprise on stage:
+*Run Full Inference* always computes for real (`?refresh=1`) and stores the
+result; *Load Cached Result* (`?cache_only=1`) replays the cache and never
+computes, showing the voxel count and refusing — with a reason — when there is
+nothing to load. A cached result can be loaded even on top of click
+reconstructions; storing still requires a pristine volume, so the entry is never
+overwritten by a non-pristine run.
+
+**Still open (deferred):**
+
+- A script to build all caches up front from a provided list of configs/volumes.
+- Clearing/deleting entries from the UI (only `?refresh=1` overwrites).
+- Cancellation during a cached replay is a no-op (it finishes in ~2 s).
+- Later, possibly: custom saves and voxel removal — i.e. a real data editor.
+  That would need per-user entries and a different identity scheme than
+  "pristine dataset volume", so it is deliberately not started here.
 
 ---
 
@@ -221,9 +238,9 @@ When it is picked up:
   loop works end-to-end, or the renderer will eat the time the reconstruction loop
   needs.
 - Optional features (projection export) must not gate or complicate the core.
-- Full-inference caching (Phase 6) is deferred on purpose. It is a speed
-  optimization for the batch path only — it must never be a prerequisite for the
-  click→reconstruct loop, and it must not put disk I/O on that loop.
+- Full-inference caching (Phase 6) is a speed optimization for the batch path
+  only — it must never become a prerequisite for the click→reconstruct loop, and
+  it must not put disk I/O on that loop.
 
 ## Out of scope / known non-issues
 

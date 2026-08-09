@@ -50,7 +50,7 @@ ROOT_PATH = str(pathlib.Path(__file__).absolute().parent.parent)
 if ROOT_PATH not in sys.path:
     sys.path.append(ROOT_PATH)
 
-from app import app_configs
+from app import app_configs, cache_store
 
 # NOTE: app.reconstruct_core (torch + configs_parser) is imported lazily by
 # init_state(). The supervisor runs this same file and must NOT pull the
@@ -391,6 +391,54 @@ def post_reconstruct():
         STATE.lock.release()
 
 
+def _cache_readable():
+    """(ok, reason) -- may we READ a cache entry for the current volume?
+
+    Entries are validated against STATE.original, which never changes, so a
+    cached result can be loaded even after the user has clicked around: the
+    replay ORs it onto whatever is on screen, exactly like a live run would.
+    """
+    if STATE.custom:
+        return False, "volume was loaded from a file (no stable identity)"
+    if not STATE.name:
+        return False, "volume has no name"
+    return True, ""
+
+
+def _cache_writable():
+    """(ok, reason) -- may we WRITE the result of this run?
+
+    Only a run over a pristine volume is the artifact we cache. Running full
+    inference on top of click reconstructions is valid, it just isn't that
+    artifact, and it must not overwrite the pristine entry for this volume.
+    """
+    ok, reason = _cache_readable()
+    if not ok:
+        return ok, reason
+    if bool(STATE.reconstructed.any()):
+        return False, "state already contains reconstructions (not a pristine volume)"
+    return True, ""
+
+
+@app.route("/cache", methods=["GET"])
+def get_cache():
+    """Whether a full-inference cache entry can be loaded / would be written."""
+    readable, read_why = _cache_readable()
+    writable, write_why = _cache_writable()
+    info = (cache_store.status(STATE.config.name, STATE.name, STATE.original)
+            if readable else {"available": False, "reason": read_why})
+    return jsonify({
+        "config": STATE.config.name,
+        "volume": STATE.name,
+        # loadable => the "Load Cached Result" button can do something right now
+        "loadable": bool(readable and info.get("available")),
+        # cacheable => a fresh run from here would be stored
+        "cacheable": writable,
+        "reason": read_why or info.get("reason", "") or write_why,
+        "entry": info,
+    })
+
+
 @app.route("/full_inference", methods=["GET"])
 def get_full_inference():
     """
@@ -402,6 +450,15 @@ def get_full_inference():
     reconstruction filling in live. On completion (or cancel) the authoritative
     state is replaced with the merged result. Single-flight: 409 if busy.
     Cancel an in-flight run with POST /full_inference/cancel.
+
+    CACHING (app/cache/, see cache_store.py): a complete run on a pristine
+    dataset volume is stored and replayed instantly next time -- as the same
+    event stream, so the volume still fills in live.
+      ?refresh=1     always recompute, then overwrite the entry
+      ?cache_only=1  replay the cache, never compute (an `error` event if there
+                     is nothing to replay) -- this is the UI's "Load Cached
+                     Result" button
+    The `done` event reports `cached` and, on a fresh run, `saved`.
     """
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
@@ -414,16 +471,69 @@ def get_full_inference():
 
     STATE.cancel_event.clear()  # fresh cancel flag for this run
 
+    def _flag(name):
+        return str(request.args.get(name, "0")).lower() in ("1", "true", "yes")
+
+    # ?refresh=1 recomputes and overwrites; ?cache_only=1 refuses to compute.
+    refresh = _flag("refresh")
+    cache_only = _flag("cache_only")
+    readable, read_why = _cache_readable()
+    writable, write_why = _cache_writable()
+
+    cached_added, cached_meta, cache_error = None, None, None
+    if readable and not refresh:
+        cached_added, info = cache_store.load(STATE.config.name, STATE.name, STATE.original)
+        if cached_added is None:
+            print(f"[Cache] miss {STATE.config.name}/{STATE.name}: {info}")
+        else:
+            cached_meta = info
+            print(f"[Cache] hit {STATE.config.name}/{STATE.name}: "
+                  f"{len(cached_added):,} voxels (cached {info.get('created')})")
+    if cache_only and cached_added is None:
+        # Explicit "load from cache" with nothing to load: say so rather than
+        # silently running a 2-minute computation the user didn't ask for.
+        cache_error = (f"no cached result for {STATE.config.name}/{STATE.name}"
+                       + (f" — {read_why}" if read_why else ""))
+    elif not writable:
+        print(f"[Cache] run will not be stored: {write_why}")
+
     def stream():
+        started = time.time()
         try:
-            for ev in CORE.full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext,
-                                          workers=workers, cancel_event=STATE.cancel_event):
+            if cache_error:
+                yield f"data: {json.dumps({'type': 'error', 'error': cache_error})}\n\n"
+                return
+            if cached_added is not None:
+                # Cache hit: same event shape, so the frontend still draws the
+                # volume filling in live -- just without the compute.
+                events = cache_store.replay(STATE.volume, cached_added,
+                                            total_cubes=int(cached_meta.get("total_cubes", 0)))
+            else:
+                events = CORE.full_inference(STATE.volume, STATE.args, source_ext=STATE.source_ext,
+                                             workers=workers, cancel_event=STATE.cancel_event)
+            for ev in events:
                 if "result" in ev:
                     result = ev.pop("result")
                     # Replace the authoritative state; everything the model added
                     # over the original becomes "reconstructed" (constraint 2).
                     STATE.volume = (result > 0.5).astype(np.uint8)
                     STATE.reconstructed = ((STATE.volume > 0.5) & (STATE.original <= 0.5)).astype(np.uint8)
+                    ev["cached"] = cached_added is not None
+                    # Store only complete, freshly computed runs (DEMO_PLAN Phase 6).
+                    if cached_added is None and writable and not ev.get("cancelled"):
+                        try:
+                            meta = cache_store.save(
+                                STATE.config.name, STATE.name, STATE.original, result,
+                                total_cubes=int(ev.get("total", 0)),
+                                seconds=time.time() - started,
+                                source_path=STATE.volume_path,
+                            )
+                            ev["saved"] = True
+                            print(f"[Cache] saved {STATE.config.name}/{STATE.name}: "
+                                  f"{meta['added']:,} voxels in {meta['seconds']}s")
+                        except Exception as exc:      # a cache failure must not fail the run
+                            ev["saved"] = False
+                            print(f"[Cache] could not save {STATE.config.name}/{STATE.name}: {exc}")
                     yield f"data: {json.dumps({'type': 'done', **ev})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'progress', **ev})}\n\n"

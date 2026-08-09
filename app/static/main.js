@@ -296,6 +296,9 @@ class Demo {
     this.views = { before: {}, after: {} };
     this.flipSide = "after";
 
+    // Last GET /cache response; gates the "Load Cached Result" button.
+    this.cache = null;
+
     // Coalesce many live voxel appends into one GPU upload per frame.
     this.dirty = false;
 
@@ -346,6 +349,9 @@ class Demo {
     this._uploadBuffers();
     if (refit) this.fit();          // a different object: reframe the camera
     this._setMeta(data);
+    // Every path that reseats the volume comes through here (load / select /
+    // upload / reset), so this is the one place the cache button must resync.
+    this._refreshCacheState();
   }
 
   async loadVolume() {
@@ -700,6 +706,9 @@ class Demo {
     document.getElementById("resetBtn").addEventListener("click", () => this.reset());
     document.getElementById("fitBtn").addEventListener("click", () => this.fit());
     document.getElementById("fullBtn").addEventListener("click", () => this.runFullInference());
+    document.getElementById("cacheBtn").addEventListener("click", () => {
+      this.runFullInference({ cacheOnly: true });
+    });
     document.getElementById("cancelBtn").addEventListener("click", () => this.cancelFullInference());
     document.getElementById("flipBtn").addEventListener("click", () => {
       this._setFlip(this.flipSide === "after" ? "before" : "after");
@@ -747,14 +756,22 @@ class Demo {
   }
 
   // ----- full inference (streamed progress) ------------------------------- //
-  runFullInference() {
+  /**
+   * `Run Full Inference` computes for real and stores the result;
+   * `Load Cached Result` ({cacheOnly:true}) replays app/cache and never
+   * computes. Kept explicit so what happens on stage is never a surprise —
+   * one button shows the pipeline working, the other is the instant path.
+   */
+  runFullInference(opts = {}) {
     if (this.busy) return;
-    this._setBusy(true, "Running full inference…");
+    const cacheOnly = !!opts.cacheOnly;
+    const query = cacheOnly ? "?cache_only=1" : "?refresh=1";
+    this._setBusy(true, cacheOnly ? "Loading cached result…" : "Running full inference…");
     this._progressOn(true);
-    this._showCancel(true);
+    this._showCancel(!cacheOnly);              // a cached replay finishes in ~2s
     this._setProgress(0, 0, 0);
     let done = false;
-    const es = new EventSource("/full_inference");
+    const es = new EventSource("/full_inference" + query);
     es.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.type === "progress") {
@@ -767,11 +784,16 @@ class Demo {
         this.dirty = true;
         this._showCancel(false); this._progressOn(false); this._setBusy(false);
         const tag = m.cancelled ? "cancelled" : "complete";
-        this._setStatus(`full inference ${tag} — +${(m.added || 0).toLocaleString()} voxels (${m.done}/${m.total} cubes)`);
+        // `cached` = replayed from app/cache; `saved` = this run filled the cache.
+        const src = m.cached ? " — from cache" : (m.saved ? " — cached for next time" : "");
+        this._setStatus(`full inference ${tag} — +${(m.added || 0).toLocaleString()} voxels `
+                        + `(${m.done}/${m.total} cubes)${src}`);
+        this._refreshCacheState();             // a fresh run may have just filled it
       } else if (m.type === "error") {
         done = true; es.close();
         this._showCancel(false); this._progressOn(false); this._setBusy(false);
         this._setStatus(`full inference error: ${m.error}`);
+        this._refreshCacheState();
       }
     };
     es.onerror = () => {
@@ -779,6 +801,26 @@ class Demo {
       es.close(); this._showCancel(false); this._progressOn(false); this._setBusy(false);
       this._setStatus("full inference: connection error");
     };
+  }
+
+  /** Sync the "Load Cached Result" button with GET /cache. */
+  async _refreshCacheState() {
+    try {
+      const info = await (await fetch("/cache", { cache: "no-store" })).json();
+      this.cache = info;
+      const b = document.getElementById("cacheBtn");
+      const entry = info.entry || {};
+      b.disabled = this.busy || !info.loadable;
+      if (info.loadable) {
+        b.textContent = `Load Cached Result (${(entry.added || 0).toLocaleString()} voxels)`;
+        b.title = `Cached ${entry.created} — ${entry.total_cubes} cubes, `
+                + `${entry.seconds}s to compute. Loads instantly.`;
+      } else {
+        b.textContent = "Load Cached Result";
+        b.title = info.reason ? `Unavailable: ${info.reason}`
+                              : "No cached result for this volume yet";
+      }
+    } catch (_) { /* leave the button as it was */ }
   }
 
   cancelFullInference() {
@@ -838,6 +880,8 @@ class Demo {
     this.busy = on;
     document.getElementById("loader").classList.toggle("on", on);
     document.getElementById("fullBtn").disabled = on;
+    // Stays disabled while busy, and whenever there is nothing cached to load.
+    document.getElementById("cacheBtn").disabled = on || !(this.cache && this.cache.loadable);
     if (msg) { document.getElementById("loaderText").textContent = msg; this._setStatus(msg); }
     if (!on) this._progressOn(false);
   }
@@ -870,6 +914,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     window._demo = demo;
     await demo.loadVolume();
     await demo.loadConfigs();
+    await demo._refreshCacheState();
   } catch (e) {
     document.getElementById("status").textContent = "init error: " + e.message;
     console.error(e);
