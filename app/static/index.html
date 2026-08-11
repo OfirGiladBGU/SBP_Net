@@ -20,6 +20,7 @@
     #hud .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .dot.orig { background: #7f8a9e; } .dot.recon { background: #43d17a; } .dot.hi { background: #ffcf4d; }
+    .dot.crop { background: transparent; border: 2px solid #ff4750; border-radius: 2px; width: 9px; height: 9px; }
 
     #controls { position: fixed; top: 12px; right: 12px; padding: 12px 14px; background: var(--panel);
       border: 1px solid #2a3145; border-radius: 10px; backdrop-filter: blur(6px); font-size: 13px;
@@ -52,6 +53,11 @@
     #panel .head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; font-size: 12px; }
     #panel .head .ttl { font-weight: 600; }
     #panel .head .sub { color: #9aa4bb; }
+    #cropBoxRow { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      padding: 4px 8px; border: 1px solid #33405c; border-radius: 8px; background: #1b2233;
+      user-select: none; }
+    #cropBoxRow:hover { background: #232c42; }
+    #cropBoxRow:has(:checked) { border-color: #ff4750; }
     #panel #views { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
     #panel figure { margin: 0; text-align: center; }
     #panel figure img { width: 68px; height: 68px; image-rendering: pixelated; border-radius: 6px;
@@ -115,6 +121,11 @@
     <div class="head">
       <span class="ttl">2D projections of last cube</span>
       <button id="flipBtn" class="after">Showing: After &nbsp;&#8635;</button>
+      <!-- Lives here, not in the view controls: it outlines the very cube these
+           projections came from, and shares their lifetime exactly. -->
+      <label id="cropBoxRow" title="Outline this cube's crop region in the 3D view">
+        <input id="toggleCropBox" type="checkbox" /><span>Crop box</span><i class="dot crop"></i>
+      </label>
       <span class="sub">input the 2D network saw vs. the output it produced</span>
     </div>
     <div id="views"></div>

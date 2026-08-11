@@ -197,3 +197,9 @@ fill (see [Full-inference cache](#full-inference-cache)).
 
 After a click, the **bottom panel** shows the 6 projections of that cube with a
 **Before / After** flip — the 2D input the network saw vs. the output it produced.
+That panel also carries the **Crop box** toggle, which outlines the same cube in
+the 3D view in red — so you can see exactly which region those projections came
+from. It lives there rather than in the view controls because it describes that
+one cube and shares the panel's lifetime: both appear on a click and both go
+away when the dataset or volume changes. The on/off preference is sticky, so the
+box comes straight back on the next click.

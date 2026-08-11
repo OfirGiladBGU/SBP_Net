@@ -180,6 +180,34 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
+// The crop box: the DATA_2D_SIZE^3 region the clicked cube was taken from, i.e.
+// exactly what the 6 projections in the bottom panel were computed from. Drawn
+// as a unit cube stretched by uniforms, so nothing is re-uploaded when it moves.
+const VS_BOX = `#version 300 es
+layout(location=0) in vec3 a_position;   // unit cube (edge 1, centered)
+uniform mat4 u_proj, u_view;
+uniform vec3 u_boxCenter, u_boxSize;
+void main() {
+  gl_Position = u_proj * u_view * vec4(u_boxCenter + a_position * u_boxSize, 1.0);
+}`;
+const FS_BOX = `#version 300 es
+precision highp float;
+uniform vec4 u_color;
+out vec4 fragColor;
+void main() { fragColor = u_color; }`;
+
+// The 12 edges of a unit cube (centered, edge 1) as a GL_LINES vertex list.
+function unitCubeEdges() {
+  const c = [
+    [-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0.5, -0.5, 0.5], [-0.5, -0.5, 0.5],  // 0..3 bottom
+    [-0.5,  0.5, -0.5], [0.5,  0.5, -0.5], [0.5,  0.5, 0.5], [-0.5,  0.5, 0.5],  // 4..7 top
+  ];
+  const pairs = [[0,1],[1,2],[2,3],[3,0], [4,5],[5,6],[6,7],[7,4], [0,4],[1,5],[2,6],[3,7]];
+  const out = [];
+  for (const [a, b] of pairs) out.push(...c[a], ...c[b]);
+  return new Float32Array(out);            // 24 vertices
+}
+
 // A unit cube (edge length 1, centered on origin) with one outward normal per face.
 function unitCubeGeometry() {
   const faces = [
@@ -230,6 +258,7 @@ class Demo {
     this.progRender = program(gl, VS_RENDER, FS_RENDER);
     this.progPick = program(gl, VS_PICK, FS_PICK);
     this.progVoxel = program(gl, VS_VOXEL, FS_VOXEL);
+    this.progBox = program(gl, VS_BOX, FS_BOX);
 
     // Geometry buffers (grown as reconstructions come back).
     this.positions = [];   // flat world xyz per point
@@ -278,6 +307,23 @@ class Demo {
     gl.vertexAttribDivisor(3, 1);   // one type per instance
     gl.bindVertexArray(null);
 
+    // --- crop-box VAOs (both just position; the cube is stretched by uniforms) ---
+    // Faces reuse the voxel renderer's unit cube; edges get their own line list.
+    this.boxFaceVao = gl.createVertexArray();
+    gl.bindVertexArray(this.boxFaceVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cubePosBuf);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    this.boxEdgeBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.boxEdgeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, unitCubeEdges(), gl.STATIC_DRAW);
+    this.boxEdgeVao = gl.createVertexArray();
+    gl.bindVertexArray(this.boxEdgeVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.boxEdgeBuf);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
     // Offscreen framebuffer for GPU color-picking.
     this.pickFbo = gl.createFramebuffer();
     this.pickTex = gl.createTexture();
@@ -295,6 +341,11 @@ class Demo {
     // 2D projections panel state (last picked cube's before/after views).
     this.views = { before: {}, after: {} };
     this.flipSide = "after";
+
+    // The last picked cube's crop region: {start:[x,y,z], size} in voxel coords.
+    // Same lifetime as the projections panel -- they describe the same cube.
+    this.lastCube = null;
+    this.showCropBox = false;
 
     // Last GET /cache response; gates the "Load Cached Result" button.
     this.cache = null;
@@ -569,6 +620,61 @@ class Demo {
     gl.bindVertexArray(null);
   }
 
+  /**
+   * World-space center + extent of the last picked cube's crop region.
+   *
+   * Voxel i is drawn as a cell centered on _worldOf(i) with edge `s`, so the
+   * crop spans from the near face of cell `start` to the far face of cell
+   * `start + size - 1` -- i.e. exactly `size` cells wide.
+   */
+  _cropBoxWorld() {
+    const { start, size } = this.lastCube;
+    const s = 1.0 / Math.max(this.shape[0], this.shape[1], this.shape[2]);
+    const half = s / 2;
+    const center = [0, 1, 2].map((a) => (start[a] + size / 2 - this.center[a]) * s - half);
+    return { center, size: [size * s, size * s, size * s] };
+  }
+
+  /** The red box around the region the bottom panel's projections came from. */
+  _drawCropBox() {
+    const gl = this.gl;
+    const { proj, view } = this._matrices();
+    const { center, size } = this._cropBoxWorld();
+    const p = this.progBox;
+    gl.useProgram(p);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_proj"), false, proj);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_view"), false, view);
+    gl.uniform3fv(gl.getUniformLocation(p, "u_boxCenter"), center);
+    gl.uniform3fv(gl.getUniformLocation(p, "u_boxSize"), size);
+    const color = gl.getUniformLocation(p, "u_color");
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // Faint tinted faces make the region obvious at a glance. No depth write and
+    // front-face culling only, so the structure inside stays fully visible.
+    gl.depthMask(false);
+    gl.enable(gl.CULL_FACE);
+    gl.uniform4f(color, 1.0, 0.25, 0.28, 0.10);
+    gl.bindVertexArray(this.boxFaceVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+    gl.disable(gl.CULL_FACE);
+
+    gl.bindVertexArray(this.boxEdgeVao);
+    // Edges twice: solid where they are genuinely in front, faint where the
+    // volume occludes them -- so the box reads as 3D but never disappears.
+    gl.uniform4f(color, 1.0, 0.28, 0.30, 1.0);
+    gl.drawArrays(gl.LINES, 0, 24);
+    gl.disable(gl.DEPTH_TEST);
+    gl.uniform4f(color, 1.0, 0.45, 0.48, 0.30);
+    gl.drawArrays(gl.LINES, 0, 24);
+    gl.enable(gl.DEPTH_TEST);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(null);
+  }
+
   _render() {
     const gl = this.gl;
     const dpr = window.devicePixelRatio || 1;
@@ -580,6 +686,8 @@ class Demo {
       if (this.renderMode === "voxels") this._drawVoxels();
       else this._drawPoints(this.progRender, dpr);
     }
+    // After the volume: the box is an overlay on top of the structure.
+    if (this.showCropBox && this.lastCube) this._drawCropBox();
     requestAnimationFrame(() => this._render());
   }
 
@@ -657,6 +765,9 @@ class Demo {
       this._uploadBuffers();
       this._setStatus(`+${data.added} voxels — ${this.count.toLocaleString()} total`);
 
+      // Remember the region those projections came from, for the crop box.
+      if (data.start) this.lastCube = { start: data.start, size: this.cubeSize };
+
       // Update the 2D projections panel (what the network saw vs. produced).
       if (data.views) { this.views = data.views; this._setFlip("after"); }
     } catch (e) {
@@ -703,6 +814,9 @@ class Demo {
     document.getElementById("toggleRecon").addEventListener("change", (e) => {
       this.showRecon = e.target.checked;
     });
+    document.getElementById("toggleCropBox").addEventListener("change", (e) => {
+      this.showCropBox = e.target.checked;
+    });
     document.getElementById("resetBtn").addEventListener("click", () => this.reset());
     document.getElementById("fitBtn").addEventListener("click", () => this.fit());
     document.getElementById("fullBtn").addEventListener("click", () => this.runFullInference());
@@ -733,11 +847,15 @@ class Demo {
     this._renderPanel();
   }
 
-  /** Hide the projections panel — its images belong to a volume we just left. */
+  /** Hide the projections panel — its images belong to a volume we just left.
+   *  The crop box describes the same cube, so it goes with them. The toggle
+   *  itself lives in that panel, so it disappears with it; `showCropBox` is
+   *  left alone so the preference survives to the next click. */
   _clearPanel() {
     this.views = { before: {}, after: {} };
     document.getElementById("views").innerHTML = "";
     document.getElementById("panel").classList.remove("on");
+    this.lastCube = null;
   }
 
   _renderPanel() {
