@@ -202,11 +202,14 @@ This code builds upon and compares against several excellent works in the 3D vis
 
 If you find this code or our methodology useful in your research, please consider citing our paper:
 ```bibtex
-@inproceedings{gilad2026SBPNet,
-    title        = {SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections},
-    author       = {Gilad, Ofir and Sharf, Andrei},
-    booktitle    = {ICIP},
-    year         = {2026},
-    organization = {IEEE},
-}
+@INPROCEEDINGS{11630432,
+  author={Gilad, Ofir and Sharf, Andrei},
+  booktitle={2026 IEEE International Conference on Image Processing (ICIP)}, 
+  title={SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Modeling;Three-dimensional displays;Printing;Arteries;Filling;Distance measurement;Clouds;Geometry;Shape;Dies;3D reconstruction;Medical CT data;Industrial 3D pipes},
+  doi={10.1109/ICIP61757.2026.11630432}}
 ```
