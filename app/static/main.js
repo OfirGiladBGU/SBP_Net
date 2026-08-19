@@ -28,6 +28,34 @@ const M4 = {
     return [right[0],up[0],back[0],0, right[1],up[1],back[1],0, right[2],up[2],back[2],0,
             -dot(right,eye),-dot(up,eye),-dot(back,eye),1];
   },
+  identity() {
+    return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  },
+  /**
+   * Model rotation from INITIAL_VOLUMES_ROTATION: [x, y, z] DEGREES, applied as
+   * extrinsic X then Y then Z (R = Rz*Ry*Rx) about the origin -- which is the
+   * volume's centre, since _worldOf() already centres the cloud there.
+   *
+   * This orients the drawn model only. Voxel indices are untouched, so clicks
+   * still send the backend unrotated coordinates (picking resolves a vertex ID
+   * to `this.voxels`, never to a world position).
+   */
+  rotationXYZ(dx, dy, dz) {
+    const r = Math.PI / 180;
+    const cx = Math.cos(dx*r), sx = Math.sin(dx*r);
+    const cy = Math.cos(dy*r), sy = Math.sin(dy*r);
+    const cz = Math.cos(dz*r), sz = Math.sin(dz*r);
+    // Rows of Rz*Ry*Rx, written out column-major for GL.
+    const m = [
+      [cz*cy, cz*sy*sx - sz*cx, cz*sy*cx + sz*sx],
+      [sz*cy, sz*sy*sx + cz*cx, sz*sy*cx - cz*sx],
+      [-sy,   cy*sx,            cy*cx           ],
+    ];
+    return [m[0][0],m[1][0],m[2][0],0,
+            m[0][1],m[1][1],m[2][1],0,
+            m[0][2],m[1][2],m[2][2],0,
+            0,0,0,1];
+  },
   multiply(a, b) {
     const o = new Array(16);
     for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
@@ -90,19 +118,27 @@ const Q = {
 // (azimuth 0.9, polar 1.1) starting pose, re-expressed as a camera orientation.
 const DEFAULT_ROT = () => Q.yawPitch(Math.PI / 2 - 0.9, 1.1 - Math.PI / 2);
 
+// Turntable: degrees per second, and how long the demo sits untouched before it
+// starts spinning by itself (attract mode).
+const SPIN_DEG_PER_SEC = 18;
+const IDLE_SPIN_AFTER_MS = 30000;
+// Longest frame the turntable will honour. A backgrounded tab delivers one huge
+// delta on return; without this the model would lurch by half a turn.
+const MAX_FRAME_SECONDS = 0.1;
+
 // --------------------------------------------------------------------------- //
 // Shaders (GLSL ES 3.00).                                                     //
 // --------------------------------------------------------------------------- //
 const VS_RENDER = `#version 300 es
 layout(location=0) in vec3 a_position;
 layout(location=1) in float a_type;      // 0 input, 1 reconstructed, 2 last-added
-uniform mat4 u_proj, u_view;
+uniform mat4 u_proj, u_view, u_model;
 uniform float u_pointSize;
 uniform float u_showRecon;
 out vec3 v_color;
 out float v_discard;
 void main() {
-  gl_Position = u_proj * u_view * vec4(a_position, 1.0);
+  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
   gl_PointSize = u_pointSize;
   v_discard = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
   if (a_type < 0.5)       v_color = vec3(0.50, 0.55, 0.63);   // input  (grey)
@@ -123,13 +159,13 @@ void main() {
 const VS_PICK = `#version 300 es
 layout(location=0) in vec3 a_position;
 layout(location=1) in float a_type;
-uniform mat4 u_proj, u_view;
+uniform mat4 u_proj, u_view, u_model;
 uniform float u_pointSize;
 uniform float u_showRecon;
 flat out vec3 v_id;
 out float v_discard;
 void main() {
-  gl_Position = u_proj * u_view * vec4(a_position, 1.0);
+  gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
   gl_PointSize = u_pointSize + 3.0;       // slightly bigger => forgiving click target
   v_discard = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
   int id = gl_VertexID + 1;               // 0 reserved for background
@@ -154,14 +190,14 @@ layout(location=0) in vec3 a_cubePos;    // unit-cube vertex (edge 1, centered)
 layout(location=1) in vec3 a_normal;     // face normal
 layout(location=2) in vec3 a_offset;     // per-instance voxel center (world)
 layout(location=3) in float a_type;      // per-instance: 0 input, 1 recon, 2 last
-uniform mat4 u_proj, u_view;
+uniform mat4 u_proj, u_view, u_model;
 uniform float u_voxelSize;
 uniform float u_showRecon;
 out vec3 v_color; out vec3 v_normal; flat out float v_cull;
 void main() {
   v_cull = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
-  gl_Position = u_proj * u_view * vec4(a_offset + a_cubePos * u_voxelSize, 1.0);
-  v_normal = a_normal;
+  gl_Position = u_proj * u_view * u_model * vec4(a_offset + a_cubePos * u_voxelSize, 1.0);
+  v_normal = mat3(u_model) * a_normal;
   if (a_type < 0.5)       v_color = vec3(0.55, 0.60, 0.68);   // input  (grey)
   else if (a_type < 1.5)  v_color = vec3(0.26, 0.82, 0.48);   // recon  (green)
   else                    v_color = vec3(1.00, 0.81, 0.30);   // last   (amber)
@@ -185,10 +221,10 @@ void main() {
 // as a unit cube stretched by uniforms, so nothing is re-uploaded when it moves.
 const VS_BOX = `#version 300 es
 layout(location=0) in vec3 a_position;   // unit cube (edge 1, centered)
-uniform mat4 u_proj, u_view;
+uniform mat4 u_proj, u_view, u_model;
 uniform vec3 u_boxCenter, u_boxSize;
 void main() {
-  gl_Position = u_proj * u_view * vec4(u_boxCenter + a_position * u_boxSize, 1.0);
+  gl_Position = u_proj * u_view * u_model * vec4(u_boxCenter + a_position * u_boxSize, 1.0);
 }`;
 const FS_BOX = `#version 300 es
 precision highp float;
@@ -350,6 +386,17 @@ class Demo {
     // Last GET /cache response; gates the "Load Cached Result" button.
     this.cache = null;
 
+    // Display orientation of the volume, from the dataset's
+    // INITIAL_VOLUMES_ROTATION. Render-only -- see M4.rotationXYZ.
+    this.baseRot = M4.identity();
+    this.modelRot = M4.identity();
+
+    // Turntable state. `on` is whether it is spinning right now; `manual` is
+    // what the user asked for. Attract mode can spin without touching `manual`,
+    // so the user's own choice is never quietly overwritten.
+    this.spin = { on: false, manual: false, idle: false, angle: 0,
+                  idleEnabled: true, lastInput: performance.now() };
+
     // Coalesce many live voxel appends into one GPU upload per frame.
     this.dirty = false;
 
@@ -357,7 +404,7 @@ class Demo {
     this._bindPointer();
     this._resize();
     window.addEventListener("resize", () => this._resize());
-    requestAnimationFrame(() => this._render());
+    requestAnimationFrame((t) => this._render(t));
   }
 
   // ----- data ------------------------------------------------------------- //
@@ -388,6 +435,10 @@ class Demo {
 
   /** Rebuild the whole cloud from a backend state snapshot. */
   _applySnapshot(data, refit = false) {
+    const rot = data.rotation || [0, 0, 0];
+    this.baseRot = M4.rotationXYZ(rot[0], rot[1], rot[2]);
+    this.spin.angle = 0;                    // a different object starts unspun
+    this._updateModelRot();
     this.shape = data.shape;
     this.cubeSize = data.cube_size;
     this.center = [this.shape[0] / 2, this.shape[1] / 2, this.shape[2] / 2];
@@ -500,6 +551,39 @@ class Demo {
   }
 
   /**
+   * Relaunch the backend on the CURRENT dataset, then reload the page.
+   *
+   * A from-scratch restart without having to switch away and back: the worker
+   * re-reads the descriptor and the configs/ yaml, reloads the volume and the
+   * model weights, and the page reload picks up edited JS/CSS too. Use it after
+   * editing anything the running process already read.
+   */
+  async reloadApp() {
+    if (this.busy) return;
+    const name = this.cache ? this.cache.config : null;
+    const active = name || (await (await fetch("/configs")).json()).active.config;
+    this._setBusy(true, "Reloading app…");
+    try {
+      const resp = await fetch("/config", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: active }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        const detail = Array.isArray(data.detail) ? data.detail.join("; ") : (data.detail || "");
+        this._setStatus(`reload failed: ${data.error || resp.status}${detail ? " — " + detail : ""}`);
+        this._setBusy(false);
+        return;
+      }
+      await this._waitForBackend();
+      window.location.reload();          // leaves the loader up until the page swaps
+    } catch (e) {
+      this._setStatus(`reload failed: ${e.message || e}`);
+      this._setBusy(false);
+    }
+  }
+
+  /**
    * Different config -> the backend restarts on it (the active config is fixed
    * at import time; see the process-model note in server.py). Wait for the new
    * worker to answer, then redraw from it.
@@ -581,7 +665,13 @@ class Demo {
     this.cam.rot = Q.normalize(Q.multiply(this.cam.rot, Q.axisAngle([0, 0, 1], dx * speed)));
   }
 
-  fit() { this.cam.target = [0, 0, 0]; this.cam.radius = 2.4; this.cam.rot = DEFAULT_ROT(); }
+  fit() {
+    this.cam.target = [0, 0, 0];
+    this.cam.radius = 2.4;
+    this.cam.rot = DEFAULT_ROT();
+    this.spin.angle = 0;              // put the object back where the config aimed it
+    this._updateModelRot();
+  }
 
   // ----- rendering -------------------------------------------------------- //
   _matrices() {
@@ -599,6 +689,7 @@ class Demo {
     gl.useProgram(prog);
     gl.uniformMatrix4fv(gl.getUniformLocation(prog, "u_proj"), false, proj);
     gl.uniformMatrix4fv(gl.getUniformLocation(prog, "u_view"), false, view);
+    gl.uniformMatrix4fv(gl.getUniformLocation(prog, "u_model"), false, this.modelRot);
     gl.uniform1f(gl.getUniformLocation(prog, "u_pointSize"), this.pointSize * dpr);
     gl.uniform1f(gl.getUniformLocation(prog, "u_showRecon"), this.showRecon ? 1.0 : 0.0);
     gl.bindVertexArray(this.vao);
@@ -613,6 +704,7 @@ class Demo {
     gl.useProgram(p);
     gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_proj"), false, proj);
     gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_view"), false, view);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_model"), false, this.modelRot);
     gl.uniform1f(gl.getUniformLocation(p, "u_voxelSize"), this.voxelSize);
     gl.uniform1f(gl.getUniformLocation(p, "u_showRecon"), this.showRecon ? 1.0 : 0.0);
     gl.bindVertexArray(this.cubeVao);
@@ -635,6 +727,54 @@ class Demo {
     return { center, size: [size * s, size * s, size * s] };
   }
 
+  /**
+   * Model matrix = turntable spin ON TOP OF the dataset's base orientation.
+   *
+   * Order matters: the spin is applied after the base rotation, about world Y,
+   * so it is a horizontal turntable about the screen vertical whatever the
+   * dataset's INITIAL_VOLUMES_ROTATION happens to be. (Base-then-spin would
+   * turn the object about whichever of its own axes happened to land there.)
+   */
+  _updateModelRot() {
+    this.modelRot = M4.multiply(M4.rotationXYZ(0, this.spin.angle, 0), this.baseRot);
+  }
+
+  /** Start/stop the turntable. `manual` marks it as the user's own choice. */
+  setAnimate(on, manual = true) {
+    this.spin.on = !!on;
+    if (manual) { this.spin.manual = !!on; this.spin.idle = false; }
+    const box = document.getElementById("toggleAnimate");
+    if (box) box.checked = this.spin.on;
+    // Lighting is fixed in world space, so a spinning model self-shades; the
+    // canvas keeps its crosshair because clicking still works while it turns.
+  }
+
+  /** Any real interaction: reset the idle timer and drop out of attract mode. */
+  _noteInput() {
+    this.spin.lastInput = performance.now();
+    if (this.spin.idle) {
+      this.spin.idle = false;
+      this.setAnimate(this.spin.manual, false);   // back to what the user chose
+    }
+  }
+
+  /**
+   * Advance the turntable by `dt` seconds, and start it by itself after a quiet
+   * spell. The step is clamped here rather than at the call site, so the "never
+   * lurch" guarantee holds however this gets driven.
+   */
+  _tickSpin(dt) {
+    if (this.spin.idleEnabled && !this.spin.on && !this.busy &&
+        performance.now() - this.spin.lastInput > IDLE_SPIN_AFTER_MS) {
+      this.spin.idle = true;
+      this.setAnimate(true, false);               // attract mode, not a user choice
+    }
+    if (!this.spin.on) return;
+    const step = Math.min(MAX_FRAME_SECONDS, Math.max(0, dt));
+    this.spin.angle = (this.spin.angle + step * SPIN_DEG_PER_SEC) % 360;
+    this._updateModelRot();
+  }
+
   /** The red box around the region the bottom panel's projections came from. */
   _drawCropBox() {
     const gl = this.gl;
@@ -644,6 +784,7 @@ class Demo {
     gl.useProgram(p);
     gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_proj"), false, proj);
     gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_view"), false, view);
+    gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_model"), false, this.modelRot);
     gl.uniform3fv(gl.getUniformLocation(p, "u_boxCenter"), center);
     gl.uniform3fv(gl.getUniformLocation(p, "u_boxSize"), size);
     const color = gl.getUniformLocation(p, "u_color");
@@ -675,9 +816,15 @@ class Demo {
     gl.bindVertexArray(null);
   }
 
-  _render() {
+  _render(timestamp) {
     const gl = this.gl;
     const dpr = window.devicePixelRatio || 1;
+    // Spin in degrees per SECOND, not per frame, so it looks the same whatever
+    // the refresh rate. _tickSpin clamps the step itself.
+    const now = timestamp || performance.now();
+    const dt = (now - (this._lastFrame || now)) / 1000;
+    this._lastFrame = now;
+    this._tickSpin(dt);
     if (this.dirty) { this._uploadBuffers(); this.dirty = false; }  // coalesced live uploads
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
@@ -688,7 +835,7 @@ class Demo {
     }
     // After the volume: the box is an overlay on top of the structure.
     if (this.showCropBox && this.lastCube) this._drawCropBox();
-    requestAnimationFrame(() => this._render());
+    requestAnimationFrame((t) => this._render(t));
   }
 
   // ----- GPU color-picking ------------------------------------------------ //
@@ -817,6 +964,15 @@ class Demo {
     document.getElementById("toggleCropBox").addEventListener("change", (e) => {
       this.showCropBox = e.target.checked;
     });
+    document.getElementById("toggleAnimate").addEventListener("change", (e) => {
+      this.setAnimate(e.target.checked);
+    });
+    document.getElementById("toggleIdleSpin").addEventListener("change", (e) => {
+      this.spin.idleEnabled = e.target.checked;
+      this.spin.lastInput = performance.now();
+      if (!e.target.checked && this.spin.idle) this.setAnimate(this.spin.manual, false);
+    });
+    document.getElementById("reloadBtn").addEventListener("click", () => this.reloadApp());
     document.getElementById("resetBtn").addEventListener("click", () => this.reset());
     document.getElementById("fitBtn").addEventListener("click", () => this.fit());
     document.getElementById("fullBtn").addEventListener("click", () => this.runFullInference());
@@ -930,7 +1086,10 @@ class Demo {
       const entry = info.entry || {};
       b.disabled = this.busy || !info.loadable;
       if (info.loadable) {
-        b.textContent = `Load Cached Result (${(entry.added || 0).toLocaleString()} voxels)`;
+        // Explicit line break (the button is `white-space: pre-line`) so the count
+        // reads as a deliberate second line instead of an overflowing wrap.
+        b.textContent = `Load Cached Result
+${(entry.added || 0).toLocaleString()} voxels`;
         b.title = `Cached ${entry.created} — ${entry.total_cubes} cubes, `
                 + `${entry.seconds}s to compute. Loads instantly.`;
       } else {
@@ -957,6 +1116,11 @@ class Demo {
 
   _bindPointer() {
     const c = this.canvas;
+    // Attract mode watches for ANY interaction, including the control panel --
+    // otherwise it would start spinning while you are still using the UI.
+    for (const ev of ["pointerdown", "pointermove", "wheel", "keydown"]) {
+      window.addEventListener(ev, () => this._noteInput(), { passive: true, capture: true });
+    }
     let dragging = false, panning = false, rolling = false, lx = 0, ly = 0, moved = 0;
     c.addEventListener("contextmenu", (e) => e.preventDefault());
     c.addEventListener("pointerdown", (e) => {
@@ -977,6 +1141,10 @@ class Demo {
         this.cam.target = [ this.cam.target[0] - (right[0]*dx - up[0]*dy) * s,
                             this.cam.target[1] - (right[1]*dx - up[1]*dy) * s,
                             this.cam.target[2] - (right[2]*dx - up[2]*dy) * s ];
+      } else if (this.spin.on) {
+        // Turntable owns the object's orientation while it runs -- letting the
+        // trackball fight it would make the spin stutter and drift. Panning and
+        // zooming stay live, so you can still frame what you are watching.
       } else if (rolling) {
         this.rollBy(dx);                      // Ctrl/Alt-drag: spin about the view axis
       } else {
@@ -998,6 +1166,7 @@ class Demo {
     this.busy = on;
     document.getElementById("loader").classList.toggle("on", on);
     document.getElementById("fullBtn").disabled = on;
+    document.getElementById("reloadBtn").disabled = on;
     // Stays disabled while busy, and whenever there is nothing cached to load.
     document.getElementById("cacheBtn").disabled = on || !(this.cache && this.cache.loadable);
     if (msg) { document.getElementById("loaderText").textContent = msg; this._setStatus(msg); }

@@ -20,6 +20,7 @@ See [`DEMO_PLAN.md`](DEMO_PLAN.md) for the design and non-negotiable constraints
 | `configs/*.yaml` | One file per selectable dataset: which `configs/` file to load, where its volumes live, which one to open by default. |
 | `app_configs.py` | Scans `app/configs/`. Deliberately free of `configs_parser`/torch imports — the supervisor uses it *before* the pipeline is imported. Run directly to see what this machine can serve. |
 | `cache_store.py`, `cache/` | Full-inference results, so re-running one is instant (see [Full-inference cache](#full-inference-cache)). |
+| `build_cache.py` | Pre-builds that cache for whole datasets up front, so the demo machine starts out warm. |
 | `static/index.html`, `static/main.js` | Phase 3–5 WebGL2 frontend: point-cloud renderer, trackball camera, GPU color-picking, live click→reconstruct loop. |
 
 ## Datasets
@@ -38,6 +39,22 @@ DEFAULT_VOLUME_PATH: "data/parse2022/eval/PA000310_vessel.nii.gz"
 Paths are relative to the repo root. A dataset whose config or volumes are
 missing is still listed, greyed out, with the reason in its tooltip
 (`python app/app_configs.py` prints the same report).
+
+**`INITIAL_VOLUMES_ROTATION: [x, y, z]`** (degrees, optional, default `[0,0,0]`)
+orients every volume of the dataset when it is drawn — some objects are stored
+on a different axis than they read best on. It rotates the **rendered model**
+about the volume's centre, never the data: voxel indices, clicks and the backend
+are untouched, so a click on the rotated model still crops the right cube.
+Applied as extrinsic X, then Y, then Z. World X is array axis 0, Y is axis 1,
+Z is axis 2, so a `np.rot90(k=1)` step maps to ±90 here — `axes=(0,2)` is
+`[0,-90,0]`, `axes=(1,2)` is `[90,0,0]`, `axes=(0,1)` is `[0,0,90]`. Flip the
+sign if it comes out mirrored. A malformed value falls back to `[0,0,0]` with a
+warning rather than breaking the app.
+
+Display-only settings are re-read from the `.yaml` on every request, so editing
+a rotation and hitting **Reload App** (or just refreshing) shows it immediately.
+`CONFIG_FILENAME` is bound at import time and still needs the worker relaunched
+— which Reload App does anyway.
 
 **Why switching a dataset restarts the backend.** `configs_parser.py` computes
 every constant at import time, and ~20 modules do `from configs.configs_parser
@@ -119,7 +136,26 @@ reconstructions (that's a valid thing to do, it just isn't the artifact we cache
 and it must not overwrite the pristine entry). Custom saves and voxel editing are
 out of scope for now.
 
-`app/cache/` is gitignored — entries are generated per machine.
+### Pre-building it
+
+`app/cache/` is gitignored, so entries are generated per machine. Rather than
+warming them by clicking through the UI, build them in one go:
+
+```bash
+# every dataset this machine can serve
+python app/build_cache.py
+
+# just some, or just one volume, or rebuild what already exists
+python app/build_cache.py --configs parse2022 pipeforge3d_mesh
+python app/build_cache.py --configs parse2022 --volumes PA000310_vessel.nii.gz
+python app/build_cache.py --refresh
+```
+
+It already-cached-skips by default, so re-running it only fills the gaps. Like
+`server.py` it is a parent + one worker per dataset (same `CONFIG_FILENAME`
+constraint), and the worker loads the models once for all of that dataset's
+volumes. A volume that fails is reported and does not stop the rest; the closing
+summary is read back off disk, so it shows what is genuinely cached.
 
 ## Requirements
 
@@ -179,6 +215,26 @@ but the Dataset picker is then disabled (nothing could restart it) and
 | `POST /reset` | Restore the original volume (drops all reconstructions). |
 
 ## Controls
+
+**Animate (spin)** is a turntable: the model turns 360° horizontally about the
+world vertical, on top of the dataset's `INITIAL_VOLUMES_ROTATION` (so set that
+first — the spin only reads right once the object stands up correctly). While it
+runs, drag-to-rotate and ctrl-drag-to-roll are disabled so the trackball can't
+fight it; **panning, zooming and clicking all still work**. Recenter unwinds it
+back to the configured orientation. Speed is `SPIN_DEG_PER_SEC` in `main.js`
+(18°/s ≈ a 20-second turn); the step is clamped per frame, so a backgrounded tab
+resumes smoothly instead of lurching.
+
+**Spin when idle** is attract mode: after `IDLE_SPIN_AFTER_MS` (30 s) untouched
+it starts spinning by itself and stops on the next interaction. It never
+overwrites the Animate checkbox — it is a temporary override, so whatever you
+chose is restored the moment you touch anything — and it won't start while a
+reconstruction is running.
+
+**Reload App** (top of the panel) relaunches the backend on the *current*
+dataset and then reloads the page: a from-scratch restart without switching away
+and back, picking up edited descriptors, `configs/` yaml, volumes, weights and
+frontend code in one go.
 
 Drag to rotate · wheel to zoom · right/shift-drag to pan · ctrl/alt-drag to roll
 · **click a point** to reconstruct around it. Rotation is a trackball: drag

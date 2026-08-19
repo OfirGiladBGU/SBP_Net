@@ -8,6 +8,8 @@ Each `app/configs/*.yaml` names one selectable dataset:
     CONFIG_FILENAME:     the configs/ file configs_parser.py must load
     VOLUMES_PATH:        folder scanned to populate the volume picker
     DEFAULT_VOLUME_PATH: volume loaded when this dataset is selected
+    INITIAL_VOLUMES_ROTATION: [x, y, z] degrees, applied to every volume of this
+                         dataset when it is drawn (see AppConfig.initial_rotation)
 
 Dropping a new .yaml in that folder adds a dataset -- nothing here or in
 server.py hardcodes the list.
@@ -45,6 +47,29 @@ def _rel(path) -> str:
         return pathlib.Path(path).as_posix()
 
 
+def _rotation(value, name: str = "") -> list:
+    """
+    INITIAL_VOLUMES_ROTATION -> [x, y, z] degrees.
+
+    A *display* orientation for every volume of the dataset: some objects are
+    stored on a different axis than they read best on, and a turntable spin only
+    looks right once the model stands up correctly. It rotates the rendered
+    model, never the data -- voxel indices, clicks and the backend are all
+    untouched. Applied about the volume's centre as extrinsic X, then Y, then Z.
+    """
+    if value is None:
+        return [0.0, 0.0, 0.0]
+    try:
+        angles = [float(v) for v in value]
+    except (TypeError, ValueError):
+        angles = []
+    if len(angles) != 3:
+        print(f"[Configs] {name}: INITIAL_VOLUMES_ROTATION must be 3 numbers "
+              f"(got {value!r}) -- using [0, 0, 0]")
+        return [0.0, 0.0, 0.0]
+    return angles
+
+
 class AppConfig:
     """One entry of app/configs/, with its paths resolved against the repo root."""
 
@@ -55,6 +80,7 @@ class AppConfig:
         self.config_filename = data.get("CONFIG_FILENAME")
         self.volumes_path = _resolve(data.get("VOLUMES_PATH"))
         self.default_volume_path = _resolve(data.get("DEFAULT_VOLUME_PATH"))
+        self.initial_rotation = _rotation(data.get("INITIAL_VOLUMES_ROTATION"), name)
 
     @property
     def config_filepath(self) -> pathlib.Path:
@@ -121,6 +147,7 @@ class AppConfig:
             "config_filename": self.config_filename,
             "volumes": self.volumes(),
             "default_volume": _rel(self.default_volume_path) if self.default_volume_path else None,
+            "initial_rotation": self.initial_rotation,
             "available": not issues,
             "problems": issues,
         }
@@ -164,5 +191,6 @@ if __name__ == "__main__":
         print(f"     volumes: {len(cfg.volumes())} in {_rel(cfg.volumes_path) if cfg.volumes_path else '?'}")
         selected = cfg.resolve_volume()
         print(f"     default: {_rel(selected) if selected else '(none)'}")
+        print(f"     rotation: {cfg.initial_rotation} deg (xyz)")
         for issue in issues:
             print(f"     ! {issue}")

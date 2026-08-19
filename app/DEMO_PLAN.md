@@ -220,14 +220,46 @@ nothing to load. A cached result can be loaded even on top of click
 reconstructions; storing still requires a pristine volume, so the entry is never
 overwritten by a non-pristine run.
 
+**Slice 3 — DONE.** `app/build_cache.py` pre-builds the cache for whole
+datasets (parent + one worker per config, models loaded once per dataset,
+skips what is already cached), so the demo machine starts out warm.
+
 **Still open (deferred):**
 
-- A script to build all caches up front from a provided list of configs/volumes.
 - Clearing/deleting entries from the UI (only `?refresh=1` overwrites).
 - Cancellation during a cached replay is a no-op (it finishes in ~2 s).
 - Later, possibly: custom saves and voxel removal — i.e. a real data editor.
   That would need per-user entries and a different identity scheme than
   "pristine dataset volume", so it is deliberately not started here.
+
+### Phase 7 — Presentation
+
+**DONE — turntable.** `Animate (spin)` rotates the model 360° horizontally about
+the world vertical, composed on top of the dataset's `INITIAL_VOLUMES_ROTATION`
+(spin-after-base, so it is a turntable whatever the base orientation is). While
+it runs the trackball is disabled — two things driving one orientation would
+stutter and drift — but pan, zoom and click stay live. `Spin when idle` starts it
+after 30 s untouched and stops on the next input, without ever overwriting the
+user's own Animate setting.
+
+**Still open (deferred):**
+
+- **Screenshot / GIF export**, behind a debug/dev section. Useful for README
+  animations of the reconstruction filling in. Note the canvas is currently
+  created with `preserveDrawingBuffer: false`, so a capture path has to either
+  flip that (costs a little performance on every frame) or read pixels in the
+  same frame it drew and composite them itself. A GIF of a full turn at 20 fps is
+  ~400 frames, so expect this to be the heavy one — encode off the main thread or
+  write frames out and assemble them offline.
+- **Before/after wipe.** A vertical divider draggable across the viewport:
+  original volume to the left of it, reconstructed to the right, so the fix reads
+  as a single image. Cheapest implementation is a clip plane in screen space —
+  pass the divider's x to the fragment shaders and `discard` reconstructed voxels
+  left of it (and, if wanted, original-only voxels right of it). No second render
+  pass, no extra geometry, and it composes with the turntable.
+- Ruled out for now (revisit only if the demo needs more): auto-orbit after a
+  click, fading the before/after toggle, and per-dataset "story" presets of
+  camera pose + interesting click coordinates.
 
 ---
 

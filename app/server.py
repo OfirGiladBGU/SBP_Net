@@ -132,6 +132,16 @@ class DemoState:
         coords = np.argwhere(mask > 0.5).astype(np.int32)
         return coords.reshape(-1).tolist()
 
+    def live_config(self):
+        """The descriptor re-read from disk, falling back to the loaded one.
+
+        Display-only settings (INITIAL_VOLUMES_ROTATION) are picked up from an
+        edited .yaml without a restart -- that is why the UI's Reload App button
+        is enough to see a tweaked rotation. Anything the *pipeline* binds at
+        import time (CONFIG_FILENAME) still needs the worker relaunched.
+        """
+        return app_configs.get_config(self.config.name) or self.config
+
     def snapshot(self) -> dict:
         original_only = (self.original > 0.5) & (self.reconstructed <= 0.5)
         return {
@@ -140,6 +150,7 @@ class DemoState:
             "cube_size": int(CORE.CUBE_SIZE),
             "config": self.config.name,
             "config_label": self.config.label,
+            "rotation": self.live_config().initial_rotation,   # display orientation, [x,y,z] deg
             "volume_path": self.volume_path,
             "custom_volume": bool(self.custom),
             "original": self.occupied_coords(original_only),
