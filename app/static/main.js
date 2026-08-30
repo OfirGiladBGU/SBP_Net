@@ -414,6 +414,21 @@ class Demo {
     return [(i - this.center[0]) * s, (j - this.center[1]) * s, (k - this.center[2]) * s];
   }
 
+  /**
+   * Voxel coordinates arrive base64-packed (see DemoState.occupied_coords) --
+   * JSON-encoding ~921k integers cost the server seconds. Decodes to a typed
+   * array, which _appendVoxels indexes exactly like a plain array. Plain arrays
+   * (the small per-cube SSE progress events) are passed straight through.
+   */
+  _decodeCoords(field) {
+    if (!field) return [];
+    if (Array.isArray(field)) return field;
+    const binary = atob(field.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return field.enc === "int32" ? new Int32Array(bytes.buffer) : new Int16Array(bytes.buffer);
+  }
+
   _appendVoxels(flatCoords, type) {
     for (let n = 0; n < flatCoords.length; n += 3) {
       const i = flatCoords[n], j = flatCoords[n + 1], k = flatCoords[n + 2];
@@ -446,8 +461,8 @@ class Demo {
     // hairline gap between neighbours so cube edges stay legible.
     this.voxelSize = (1.0 / Math.max(this.shape[0], this.shape[1], this.shape[2])) * 0.9;
     this.positions = []; this.types = []; this.voxels = [];
-    this._appendVoxels(data.original, 0);
-    this._appendVoxels(data.reconstructed, 1);
+    this._appendVoxels(this._decodeCoords(data.original), 0);
+    this._appendVoxels(this._decodeCoords(data.reconstructed), 1);
     this._uploadBuffers();
     if (refit) this.fit();          // a different object: reframe the camera
     this._setMeta(data);
@@ -564,9 +579,11 @@ class Demo {
     const active = name || (await (await fetch("/configs")).json()).active.config;
     this._setBusy(true, "Reloading app…");
     try {
+      // restart:true on purpose -- a dataset switch rebinds in place (fast), but
+      // Reload App is what you press after editing code, so it must relaunch.
       const resp = await fetch("/config", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: active }),
+        body: JSON.stringify({ name: active, restart: true }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -603,6 +620,15 @@ class Demo {
         await this.loadConfigs();               // re-sync the picker with reality
         return;
       }
+      if (data.restarting === false) {
+        // Fast path: the backend rebound in place and handed us the new state,
+        // so there is nothing to wait for.
+        this._applySnapshot(data, true);
+        await this.loadConfigs();
+        this._clearPanel();
+        this._setStatus(`dataset: ${data.label} — ${this.count.toLocaleString()} voxels`);
+        return;
+      }
       this._setBusy(true, `Loading ${data.label} — restarting backend…`);
       await this._waitForBackend();
       await this.loadVolume();
@@ -620,14 +646,14 @@ class Demo {
   /** Poll until the relaunched worker serves again (model load takes a while). */
   async _waitForBackend(timeoutMs = 180000) {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    await sleep(1500);                          // don't mistake the dying worker for the new one
+    await sleep(700);                           // don't mistake the dying worker for the new one
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
       try {
         const r = await fetch("/volume", { cache: "no-store" });
         if (r.ok) return true;
       } catch (_) { /* still down */ }
-      await sleep(1000);
+      await sleep(200);                         // tight poll: the wait IS the delay
     }
     throw new Error("backend did not come back in time");
   }

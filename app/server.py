@@ -16,13 +16,16 @@ can offer a dataset picker instead of anything being hardcoded here.
 PROCESS MODEL -- why there are two processes:
     configs_parser.py computes every constant at import time and ~20 modules do
     `from configs.configs_parser import *`, which COPIES those values into their
-    own namespace. So the active config cannot be changed once it is imported.
-    Running `python app/server.py` therefore starts a small SUPERVISOR, which
-    launches a WORKER (`--serve`) with SBP_CONFIG_FILENAME set for the chosen
-    dataset. Switching datasets in the UI makes the worker exit with
-    _SWITCH_EXIT_CODE; the supervisor relaunches it on the new config. That
-    keeps the config guaranteed-consistent instead of half-reloaded.
-    Switching only the *volume* needs no restart -- see POST /volume/select.
+    own namespace. Running `python app/server.py` therefore starts a small
+    SUPERVISOR, which launches a WORKER (`--serve`) with SBP_CONFIG_FILENAME set
+    for the chosen dataset.
+
+    Switching datasets is normally done IN PLACE by app/config_swap.py (~0.05s);
+    the supervisor exists as the fallback for when that rebind cannot be proven
+    complete -- the worker then exits with _SWITCH_EXIT_CODE and is relaunched on
+    the new config (~15s). Correctness over speed: a half-applied config would
+    give plausible-looking wrong results.
+    Switching only the *volume* never needs either -- see POST /volume/select.
 
 All heavy lifting lives in app/reconstruct_core.reconstruct_at.
 """
@@ -40,6 +43,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 
 import cv2
 import numpy as np
@@ -50,7 +54,7 @@ ROOT_PATH = str(pathlib.Path(__file__).absolute().parent.parent)
 if ROOT_PATH not in sys.path:
     sys.path.append(ROOT_PATH)
 
-from app import app_configs, cache_store
+from app import app_configs, cache_store, config_swap, volume_cache
 
 # NOTE: app.reconstruct_core (torch + configs_parser) is imported lazily by
 # init_state(). The supervisor runs this same file and must NOT pull the
@@ -99,6 +103,14 @@ def _upload_too_large(_):
     return jsonify({"error": "file too large", "detail": f"limit is {MAX_UPLOAD_MB} MB"}), 413
 
 
+# These guard the PIPELINE, not any one volume, so they live at module scope and
+# survive an in-place config swap. Per-DemoState locks would silently break the
+# single-flight guarantee across a swap -- and a caller holding the old state's
+# lock would be releasing an object nothing else was waiting on.
+_PIPELINE_LOCK = threading.Lock()
+_CANCEL_EVENT = threading.Event()
+
+
 class DemoState:
     """Authoritative volume state held in memory by the backend."""
 
@@ -107,9 +119,9 @@ class DemoState:
         self.config = config                                  # the app/configs/ descriptor in use
         self.args = args
         # The lock IS the concurrency guard: one reconstruction in flight (constraint 3).
-        self.lock = threading.Lock()
+        self.lock = _PIPELINE_LOCK
         # Set by POST /full_inference/cancel to stop an in-flight full run early.
-        self.cancel_event = threading.Event()
+        self.cancel_event = _CANCEL_EVENT
         self.load_volume(volume, name, source_ext, volume_path)
 
     def load_volume(self, volume: np.ndarray, name: str, source_ext: str,
@@ -123,14 +135,53 @@ class DemoState:
         self.custom = custom
         self.volume_path = None if custom else (app_configs._rel(volume_path) if volume_path else None)
         self.source_ext = source_ext                          # projection convention (constraint 4)
-        self.original = (volume > 0.5).astype(np.uint8)       # immutable reference
-        self.volume = self.original.copy()                    # current state (mutated)
+        # The cached decode is already binarised uint8 and handed out read-only,
+        # so alias it rather than rebuilding a 90MB array on every switch.
+        self._source_path = None if custom else volume_path
+        self.original = volume if volume.dtype == np.uint8 else (volume > 0.5).astype(np.uint8)
+        self.volume = volume_cache.working_copy(self._source_path, self.original)
         self.reconstructed = np.zeros_like(self.original)     # voxels added by the model
+        # Occupancy is tracked as COORDINATES as well as masks. np.argwhere over
+        # a 512^3 volume costs ~1s -- it scans every voxel however few are set --
+        # and snapshot() used to do it twice per response. The original's
+        # coordinates never change (cached per file), and reconstructed voxels
+        # are handed to us explicitly, so nothing needs rescanning.
+        self._original_coords = volume_cache.occupied(
+            None if custom else volume_path, self.original)
+        self._recon_coords = []                               # list of (N,3) arrays
 
-    def occupied_coords(self, mask: np.ndarray):
-        """Flat [x0,y0,z0,x1,y1,z1,...] int list of occupied voxels in `mask`."""
-        coords = np.argwhere(mask > 0.5).astype(np.int32)
-        return coords.reshape(-1).tolist()
+    def add_reconstructed(self, coords):
+        """Record voxels the model just added (already known to be new)."""
+        if len(coords):
+            self._recon_coords.append(np.asarray(coords, dtype=np.int32).reshape(-1, 3))
+
+    def set_reconstructed_mask(self, mask: np.ndarray):
+        """Replace the reconstructed set from a mask (full inference's merge)."""
+        self.reconstructed = mask.astype(np.uint8)
+        self._recon_coords = [np.argwhere(mask > 0.5).astype(np.int32)]
+
+    def reconstructed_coords(self):
+        if not self._recon_coords:
+            return np.empty((0, 3), dtype=np.int32)
+        return (self._recon_coords[0] if len(self._recon_coords) == 1
+                else np.concatenate(self._recon_coords))
+
+    def pack_coords(self, coords: np.ndarray):
+        """Occupied voxels as base64 of a flat [x,y,z,...] int array.
+
+        Not a JSON list: a parse2022 volume has ~307k voxels = ~921k integers,
+        and encoding those as JSON text cost 2.2s per response -- far more than
+        the whole config switch. Packed binary is ~40x faster to produce, a third
+        smaller on the wire, and decodes in the browser as a typed-array view.
+        int16 covers any volume up to 32767 on a side; wider falls back to int32.
+        """
+        wide = max(self.volume.shape) > 32767
+        packed = coords.astype(np.int32 if wide else np.int16).reshape(-1)
+        return {
+            "enc": "int32" if wide else "int16",
+            "count": int(coords.shape[0]),
+            "data": base64.b64encode(packed.tobytes()).decode("ascii"),
+        }
 
     def live_config(self):
         """The descriptor re-read from disk, falling back to the loaded one.
@@ -143,7 +194,9 @@ class DemoState:
         return app_configs.get_config(self.config.name) or self.config
 
     def snapshot(self) -> dict:
-        original_only = (self.original > 0.5) & (self.reconstructed <= 0.5)
+        # Reconstructed voxels are always ones that were NOT already occupied
+        # (both producers subtract the current state first), so the original's
+        # own coordinates need no masking against them.
         return {
             "name": self.name,
             "shape": [int(s) for s in self.volume.shape],
@@ -153,13 +206,14 @@ class DemoState:
             "rotation": self.live_config().initial_rotation,   # display orientation, [x,y,z] deg
             "volume_path": self.volume_path,
             "custom_volume": bool(self.custom),
-            "original": self.occupied_coords(original_only),
-            "reconstructed": self.occupied_coords(self.reconstructed),
+            "original": self.pack_coords(self._original_coords),
+            "reconstructed": self.pack_coords(self.reconstructed_coords()),
         }
 
     def reset(self):
-        self.volume = self.original.copy()
+        self.volume = volume_cache.working_copy(self._source_path, self.original)
         self.reconstructed = np.zeros_like(self.original)
+        self._recon_coords = []
 
 
 STATE: DemoState = None  # populated by init_state() at startup
@@ -184,7 +238,7 @@ def init_state(config, volume_path=None, use_cuda: bool = True):
         )
 
     resolved = config.resolve_volume(volume_path)
-    volume, name, source_ext = CORE.load_demo_volume(resolved)
+    volume, name, source_ext = volume_cache.load(CORE.load_demo_volume, resolved)
     args = CORE.build_args(use_cuda=use_cuda)
     CORE.init_models(args)  # pre-warm: load the model weights once
     STATE = DemoState(config=config, args=args, volume=volume, name=name,
@@ -194,6 +248,89 @@ def init_state(config, volume_path=None, use_cuda: bool = True):
         f"shape={STATE.volume.shape} occupied={int(STATE.original.sum())} "
         f"cube_size={CORE.CUBE_SIZE} source_ext={source_ext} device={args.device}"
     )
+    return STATE
+
+
+# Serialises the background prefetch against a config swap: the swap reloads
+# modules the prefetch is executing inside, so the two must never overlap.
+_swap_lock = threading.Lock()
+_prefetch_stop = threading.Event()
+
+
+def _prefetch_volumes(configs):
+    """Decode other datasets' default volumes into the cache, in the background.
+
+    A dataset switch costs ~3.5s of gzip/mesh decoding and ~0.04s of everything
+    else, so warming the decode is what makes switching feel instant. Runs one
+    volume at a time under _swap_lock, and gives up as soon as a real switch
+    happens -- from then on the user is driving and the cache fills naturally.
+    """
+    for config in configs:
+        if _prefetch_stop.is_set():
+            return
+        try:
+            path = config.resolve_volume()
+            if path is None:
+                continue
+            with _swap_lock:
+                if _prefetch_stop.is_set():
+                    return
+                started = time.time()
+                volume_cache.load(CORE.load_demo_volume, path)
+            print(f"[Server] Pre-warmed {config.name}/{path.name} "
+                  f"in {time.time() - started:.1f}s {volume_cache.stats()}", flush=True)
+        except Exception as exc:               # a warm-up must never be fatal
+            print(f"[Server] Pre-warm skipped {config.name}: {type(exc).__name__}: {exc}")
+
+
+def start_prefetch(active_config):
+    """Warm every OTHER usable dataset's default volume, newest-first."""
+    others = [c for c in app_configs.list_configs()
+              if c.name != active_config.name and not c.problems()]
+    if not others:
+        return
+    threading.Thread(target=_prefetch_volumes, args=(others,),
+                     name="volume-prefetch", daemon=True).start()
+
+
+def swap_config(config, volume_path=None):
+    """
+    Rebind the process to `config` in place -- no restart. Returns the new
+    state snapshot, or raises (whereupon the caller restarts instead).
+
+    The heavy imports (torch, cv2, nibabel, the models) are already resident and
+    are NOT redone; only the config-derived module state, the model weights and
+    the volume change. config_swap verifies the rebind completely took before
+    this returns, so a half-applied config can never be served.
+    """
+    global CORE, STATE
+
+    started = time.time()
+    _prefetch_stop.set()                        # the user is driving now
+    with _swap_lock:                            # never reload under the prefetch
+        t0 = time.time()
+        _parser, reloaded = config_swap.swap(config.config_filename)
+        CORE = sys.modules["app.reconstruct_core"]
+        t_rebind = time.time() - t0
+
+        t0 = time.time()
+        resolved = config.resolve_volume(volume_path)
+        volume, name, source_ext = volume_cache.load(CORE.load_demo_volume, resolved)
+        t_volume = time.time() - t0
+
+        t0 = time.time()
+        args = CORE.build_args(use_cuda=bool(STATE.args.cuda))
+        CORE.init_models(args)                  # this config's weights
+        t_models = time.time() - t0
+
+    t0 = time.time()
+    STATE = DemoState(config=config, args=args, volume=volume, name=name,
+                      source_ext=source_ext, volume_path=resolved)
+    t_state = time.time() - t0
+    print(f"[Server] Switched to {config.name} in {time.time() - started:.2f}s "
+          f"(rebind {t_rebind:.2f} + volume {t_volume:.2f} + models {t_models:.2f} "
+          f"+ state {t_state:.2f}) -- {len(reloaded)} modules, {name} "
+          f"{STATE.volume.shape} cache={volume_cache.stats()}", flush=True)
     return STATE
 
 
@@ -239,16 +376,18 @@ def get_configs():
 def post_config():
     """
     Body: {"name": <descriptor>, "volume": <repo-relative path, optional>}.
-    Switches the active dataset. The config is baked in at import time, so this
-    asks the supervisor for a clean restart on the new config: the response is
-    sent, then this worker exits with _SWITCH_EXIT_CODE and is relaunched. The
-    client should poll GET /volume until the new worker answers.
-    """
-    if os.environ.get(_SUPERVISED_ENV) != "1":
-        return jsonify({"error": "unsupervised",
-                        "detail": "started with --serve; run `python app/server.py` "
-                                  "so a supervisor can restart the worker"}), 501
+    Switches the active dataset.
 
+    FAST PATH: the config is rebound in place (app/config_swap.py) and the new
+    state snapshot is returned directly, with `restarting: false`. No process
+    restart, so the ~14s of re-importing torch and the pipeline is skipped.
+
+    FALLBACK: if the in-place rebind cannot be *proven* complete, this asks the
+    supervisor for a clean restart instead and replies `restarting: true`; the
+    client then polls GET /volume until the new worker answers. Correctness wins
+    over speed -- a half-applied config would give plausible-looking wrong
+    results, which is worse than a slow switch.
+    """
     payload = request.get_json(force=True, silent=True) or {}
     name = payload.get("name")
     config = app_configs.get_config(name) if name else None
@@ -265,20 +404,53 @@ def post_config():
         return jsonify({"error": f"'{requested_volume}' is not a volume of dataset "
                                  f"'{config.name}'"}), 400
 
-    # Don't tear the process down underneath a running reconstruction.
+    # Don't swap the pipeline out from underneath a running reconstruction.
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
-    # NOTE: the lock is deliberately never released -- this process is going away,
-    # and holding it stops anything new from starting during the handover.
 
-    volume = config.resolve_volume(requested_volume)
-    _request_switch(config.name, volume)
-    return jsonify({
-        "restarting": True,
-        "config": config.name,
-        "label": config.label,
-        "volume": app_configs._rel(volume) if volume else None,
-    })
+    # "restart": true forces the slow path. The UI's Reload App uses it: an
+    # in-place rebind re-reads the YAML but keeps the already-imported Python,
+    # and "reload the app" should mean edited code takes effect too.
+    force_restart = bool(payload.get("restart"))
+
+    lock = STATE.lock                       # the object we acquired, whatever STATE becomes
+    released = False
+    try:
+        if force_restart:
+            raise RuntimeError("restart requested by the client")
+        state = swap_config(config, requested_volume)
+        snapshot = state.snapshot()
+        lock.release()
+        released = True
+        return jsonify({"restarting": False, "config": config.name,
+                        "label": config.label, **snapshot})
+    except Exception as exc:
+        # The rebind could not be proven complete -- fall back to the restart,
+        # which cannot be half-applied because the process starts from scratch.
+        # flush: the fallback path ends in os._exit, which drops buffered stdout.
+        if not force_restart:
+            traceback.print_exc()
+        if force_restart:
+            print(f"[Server] Restart requested for '{config.name}'.", flush=True)
+        else:
+            print(f"[Server] In-process switch to '{config.name}' failed "
+                  f"({type(exc).__name__}: {exc}); falling back to a restart.", flush=True)
+        if os.environ.get(_SUPERVISED_ENV) != "1":
+            if not released:
+                lock.release()
+            return jsonify({"error": "switch failed",
+                            "detail": f"{exc} (and no supervisor to restart: "
+                                      f"started with --serve)"}), 500
+        # Keep the lock: this process is going away, and holding it stops
+        # anything new from starting during the handover.
+        volume = config.resolve_volume(requested_volume)
+        _request_switch(config.name, volume)
+        return jsonify({
+            "restarting": True,
+            "config": config.name,
+            "label": config.label,
+            "volume": app_configs._rel(volume) if volume else None,
+        })
 
 
 @app.route("/volume/select", methods=["POST"])
@@ -299,7 +471,7 @@ def post_volume_select():
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
     try:
-        volume, name, source_ext = CORE.load_demo_volume(resolved)
+        volume, name, source_ext = volume_cache.load(CORE.load_demo_volume, resolved)
         STATE.load_volume(volume, name, source_ext, resolved)
         print(f"[Server] Volume -> {name} shape={STATE.volume.shape} "
               f"occupied={int(STATE.original.sum())} source_ext={source_ext}")
@@ -388,6 +560,7 @@ def post_reconstruct():
             # OR the new voxels into the authoritative state (constraint 2).
             STATE.volume[gi, gj, gk] = 1
             STATE.reconstructed[gi, gj, gk] = 1
+            STATE.add_reconstructed(new_coords)
         return jsonify({
             "added": int(len(new_coords)),
             "start": result["start"],
@@ -528,7 +701,7 @@ def get_full_inference():
                     # Replace the authoritative state; everything the model added
                     # over the original becomes "reconstructed" (constraint 2).
                     STATE.volume = (result > 0.5).astype(np.uint8)
-                    STATE.reconstructed = ((STATE.volume > 0.5) & (STATE.original <= 0.5)).astype(np.uint8)
+                    STATE.set_reconstructed_mask((STATE.volume > 0.5) & (STATE.original <= 0.5))
                     ev["cached"] = cached_added is not None
                     # Store only complete, freshly computed runs (DEMO_PLAN Phase 6).
                     if cached_added is None and writable and not ev.get("cancelled"):
@@ -609,6 +782,8 @@ def _serve(cli):
                          f"Available: {[c.name for c in app_configs.list_configs()]}")
 
     init_state(config=config, volume_path=cli.volume, use_cuda=not cli.no_cuda)
+    if not cli.no_prefetch:
+        start_prefetch(config)                  # make the first dataset switch instant
     # threaded=True so the single-flight lock (not the server) governs concurrency;
     # use_reloader=False so the heavy model is not loaded twice.
     app.run(host=cli.host, port=cli.port, threaded=True, use_reloader=False, debug=False)
@@ -641,6 +816,8 @@ def _supervise(cli):
             cmd += ["--volume", str(selection["volume"])]
         if cli.no_cuda:
             cmd.append("--no-cuda")
+        if cli.no_prefetch:
+            cmd.append("--no-prefetch")
 
         # The worker inherits the chosen config through the environment, so
         # configs_parser binds to it at its very first import.
@@ -682,6 +859,8 @@ def main():
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--no-cuda", action="store_true", default=False)
+    parser.add_argument("--no-prefetch", action="store_true", default=False,
+                        help="don't pre-decode other datasets' volumes in the background")
     parser.add_argument("--serve", action="store_true", default=False,
                         help="Internal: run the worker directly, without a supervisor "
                              "(the dataset picker is then disabled)")

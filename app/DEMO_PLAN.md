@@ -232,6 +232,31 @@ skips what is already cached), so the demo machine starts out warm.
   That would need per-user entries and a different identity scheme than
   "pristine dataset volume", so it is deliberately not started here.
 
+### Phase 8 — Fast dataset switching (DONE)
+
+Switching datasets relaunched the worker, ~18s, because `configs_parser` bakes
+its constants in at import and ~20 modules copy them. Measured, only 3.7s of
+that was real work; 14.3s was re-importing torch and the pipeline.
+
+`app/config_swap.py` rebinds in place instead: reload `configs_parser`, reload
+every module still holding a stale copy, then **prove** none are left. It cannot
+be a plain `setattr` sweep — modules derive state from config values at import
+(`reconstruct_core.CUBE_SIZE` and `_INPUT_SIZE_MODEL_2D` from `DATA_2D_SIZE`),
+and a patched name leaves the derivative stale, silently cropping at the wrong
+size. If the proof fails, `POST /config` falls back to the supervisor restart.
+
+Then the costs that remained were measured, not guessed, and each removed:
+volume decode ~3.5s, `np.argwhere` over 89.9M voxels ~1s (twice per snapshot),
+and allocating fresh 90MB arrays in-process ~1s. `app/volume_cache.py` holds the
+decode, the coordinates and a reusable working buffer; reconstructed voxels are
+tracked as coordinates as they arrive instead of being rescanned. Result:
+
+    18s  ->  0.07s  per switch,  and GET /volume 2.20s -> 0.03s
+
+Verified equal to a restart, not just fast: an in-process swap and a cold process
+produce byte-identical reconstructions (same SHA1 of the output cube), and heavy
+switching leaves per-dataset results unchanged.
+
 ### Phase 7 — Presentation
 
 **DONE — turntable.** `Animate (spin)` rotates the model 360° horizontally about

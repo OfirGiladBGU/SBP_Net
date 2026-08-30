@@ -18,6 +18,8 @@ See [`DEMO_PLAN.md`](DEMO_PLAN.md) for the design and non-negotiable constraints
 | `reconstruct_core.py` | Phase 1 core: `reconstruct_at(volume, x, y, z, ...)`. Centered dynamic crop → real pipeline → newly-added voxels in **global** coords, in memory. Run directly for a proof-of-compute + projection-format check. |
 | `server.py` | Phase 2 Flask server. Owns the authoritative volume state; single-flight lock. Serves the frontend. Also the supervisor that owns the worker process (see [Datasets](#datasets)). |
 | `configs/*.yaml` | One file per selectable dataset: which `configs/` file to load, where its volumes live, which one to open by default. |
+| `config_swap.py` | Rebinds the process to another dataset's config in place, ~0.05s instead of a ~15s restart — and refuses unless it can prove the rebind fully landed. |
+| `volume_cache.py` | Decoded volumes, their occupied-voxel coordinates, and a reusable working buffer. Survives a config swap by design. |
 | `app_configs.py` | Scans `app/configs/`. Deliberately free of `configs_parser`/torch imports — the supervisor uses it *before* the pipeline is imported. Run directly to see what this machine can serve. |
 | `cache_store.py`, `cache/` | Full-inference results, so re-running one is instant (see [Full-inference cache](#full-inference-cache)). |
 | `build_cache.py` | Pre-builds that cache for whole datasets up front, so the demo machine starts out warm. |
@@ -56,16 +58,40 @@ a rotation and hitting **Reload App** (or just refreshing) shows it immediately.
 `CONFIG_FILENAME` is bound at import time and still needs the worker relaunched
 — which Reload App does anyway.
 
-**Why switching a dataset restarts the backend.** `configs_parser.py` computes
-every constant at import time, and ~20 modules do `from configs.configs_parser
-import *`, which *copies* those values into their own namespace — so the active
-config can't be changed once imported. `python app/server.py` therefore runs a
-small **supervisor** that launches a **worker** with `SBP_CONFIG_FILENAME` set
-(the one hook added to `configs_parser.py`). Picking a dataset makes the worker
-exit; the supervisor relaunches it on the new config, and the page polls until
-it answers (a few seconds). The worker refuses to start if `configs_parser`
-didn't bind to the config the descriptor names — a silently mismatched config
-would produce plausible-looking wrong results.
+**Switching a dataset is done in place, in ~0.05s.** `configs_parser.py`
+computes every constant at import time, and ~20 modules do `from
+configs.configs_parser import *`, which *copies* those values into their own
+namespace. Switching used to relaunch the worker for that reason, which cost
+~18s — of which only ~3.7s was real work:
+
+| | |
+|---|---|
+| `import torch` | 5.9s |
+| `app.reconstruct_core` (cv2, nibabel, open3d, models) | 8.4s |
+| **pure restart overhead** | **14.3s** |
+| `init_models` + volume decode | 3.7s |
+
+[`config_swap.py`](config_swap.py) removes all of it: it reloads
+`configs_parser` and every module still holding a stale copy, then **proves** the
+rebind landed before returning. If it can't, `POST /config` falls back to the
+supervisor restart — a partial config would give plausible-looking wrong
+results, so correctness wins over speed. Measured end-to-end, in place:
+
+```
+rebind 0.02s + volume 0.00s + models 0.02s + state 0.03s  =  0.07s
+```
+
+It reloads rather than just assigning the new values, because several modules
+*derive* state from a config value at import — `reconstruct_core.CUBE_SIZE` and
+`_INPUT_SIZE_MODEL_2D` both come from `DATA_2D_SIZE`. Patching the name would
+leave the derivative stale and silently crop at the wrong size.
+
+Two caches make the rest disappear: [`volume_cache.py`](volume_cache.py) keeps
+decoded volumes (a 512³ `.nii.gz` costs ~3.5s to decode), their occupied-voxel
+coordinates (`np.argwhere` scans all 89.9M voxels, ~1s), and a reusable working
+buffer (allocating a fresh 90MB array in-process cost ~1s). Other datasets'
+default volumes are decoded in a background thread at startup, so even the first
+switch is warm — `--no-prefetch` turns that off.
 
 Switching only the **volume** stays in-process: same config, same loaded models,
 no restart.

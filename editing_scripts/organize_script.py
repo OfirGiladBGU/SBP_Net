@@ -16,21 +16,26 @@ def group_by_name(images):
 
 
 def stack_rows(image_groups, white_space=5, target_size=(100, 100)):
+    # When transposing, each tile is flipped over its diagonal so that it comes
+    # back upright once the final image is transposed. Its width/height swap.
+    cell_size = (target_size[1], target_size[0]) if TRANSPOSE else target_size
     rows = []
     for name in sorted(image_groups.keys()):
         sorted_imgs = sorted(image_groups[name], key=lambda x: x[0])
         imgs = [Image.open(p).resize(target_size, Image.BICUBIC) for _, p in sorted_imgs]
+        if TRANSPOSE:
+            imgs = [img.transpose(Image.TRANSPOSE) for img in imgs]
         n_imgs = len(imgs)
-        row_width = n_imgs * target_size[0] + (n_imgs - 1) * white_space
-        row_img = Image.new('RGB', (row_width, target_size[1]), (0, 0, 0))  # black background
+        row_width = n_imgs * cell_size[0] + (n_imgs - 1) * white_space
+        row_img = Image.new('RGB', (row_width, cell_size[1]), (0, 0, 0))  # black background
         x_offset = 0
         for i, img in enumerate(imgs):
             row_img.paste(img, (x_offset, 0))
-            x_offset += target_size[0]
+            x_offset += cell_size[0]
             if i < n_imgs - 1:
                 # Draw vertical white space
                 for x in range(white_space):
-                    for y in range(target_size[1]):
+                    for y in range(cell_size[1]):
                         row_img.putpixel((x_offset + x, y), (255, 255, 255))
                 x_offset += white_space
         rows.append(row_img)
@@ -60,8 +65,14 @@ def compose_image(folders, white_space=5, red_line_height=5, row_spacing=5, targ
     for row in all_rows:
         final_img.paste(row, (0, y_offset))
         y_offset += row.height
+    if TRANSPOSE:
+        final_img = final_img.transpose(Image.TRANSPOSE)
     return final_img
 
+
+# If True, the whole composition is transposed: image groups are stacked as
+# columns instead of rows, and the red separator lines become vertical.
+TRANSPOSE = False
 
 # Usage
 folders = [
