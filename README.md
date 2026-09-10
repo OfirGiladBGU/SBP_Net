@@ -119,6 +119,29 @@ This tool supports an **interactive mode** for live viewing, or you can configur
 
 ---
 
+## Interactive Demo
+
+The repository also ships a browser-based demo of the method. Orbit a structure,
+**click a point on it**, and the model reconstructs a cube around that click and
+patches the new voxels into the view live — or run the full sliding-box inference
+over the whole volume and watch it fill in. A before/after wipe lets you compare
+the input and the reconstruction in a single image.
+
+```bash
+pip install flask          # see app/extra_requirements.txt
+python app/server.py       # then open http://127.0.0.1:5000/
+```
+
+Everything runs locally: the browser renders (WebGL2) and Python holds the volume
+and the model and runs the *real* inference pipeline, so no VTK or other desktop
+3D stack is involved. Datasets are declared in `app/configs/*.yaml` and can be
+switched from the UI. See [`app/README.md`](app/README.md) for the full details.
+
+The demo uses the same weights and volumes as the pipeline above — both are
+available from our [Google Drive](https://drive.google.com/drive/folders/1byYa2RnqDiDiQevLBdsWS4xSF5643C_m?usp=drive_link).
+
+---
+
 ## Data Setup
 
 Our pipeline supports multiple data representations (Voxel Grids, Meshes, and Point Clouds). Below is an example of setting up a medical dataset (e.g., [Parse2022](https://parse2022.grand-challenge.org/)).

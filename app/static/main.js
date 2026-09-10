@@ -137,10 +137,12 @@ uniform float u_pointSize;
 uniform float u_showRecon;
 out vec3 v_color;
 out float v_discard;
+flat out float v_recon;                  // 1 for anything the model added
 void main() {
   gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
   gl_PointSize = u_pointSize;
   v_discard = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
+  v_recon = (a_type > 0.5) ? 1.0 : 0.0;
   if (a_type < 0.5)       v_color = vec3(0.50, 0.55, 0.63);   // input  (grey)
   else if (a_type < 1.5)  v_color = vec3(0.26, 0.82, 0.48);   // recon  (green)
   else                    v_color = vec3(1.00, 0.81, 0.30);   // last   (amber)
@@ -148,9 +150,13 @@ void main() {
 const FS_RENDER = `#version 300 es
 precision highp float;
 in vec3 v_color; in float v_discard;
+flat in float v_recon;
+uniform float u_wipeX;                    // screen x of the before/after divider
 out vec4 fragColor;
 void main() {
   if (v_discard > 0.5) discard;
+  // Left of the divider is "before": drop everything the model added.
+  if (v_recon > 0.5 && gl_FragCoord.x < u_wipeX) discard;
   vec2 d = gl_PointCoord - vec2(0.5);
   if (dot(d, d) > 0.25) discard;          // round points
   fragColor = vec4(v_color, 1.0);
@@ -164,19 +170,25 @@ uniform float u_pointSize;
 uniform float u_showRecon;
 flat out vec3 v_id;
 out float v_discard;
+flat out float v_recon;
 void main() {
   gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
   gl_PointSize = u_pointSize + 3.0;       // slightly bigger => forgiving click target
   v_discard = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
+  v_recon = (a_type > 0.5) ? 1.0 : 0.0;
   int id = gl_VertexID + 1;               // 0 reserved for background
   v_id = vec3(float(id & 0xFF), float((id >> 8) & 0xFF), float((id >> 16) & 0xFF)) / 255.0;
 }`;
 const FS_PICK = `#version 300 es
 precision highp float;
 flat in vec3 v_id; in float v_discard;
+flat in float v_recon;
+uniform float u_wipeX;
 out vec4 fragColor;
 void main() {
   if (v_discard > 0.5) discard;
+  // Same rule as the visible pass: you can't click what the wipe is hiding.
+  if (v_recon > 0.5 && gl_FragCoord.x < u_wipeX) discard;
   vec2 d = gl_PointCoord - vec2(0.5);
   if (dot(d, d) > 0.25) discard;
   fragColor = vec4(v_id, 1.0);
@@ -193,9 +205,10 @@ layout(location=3) in float a_type;      // per-instance: 0 input, 1 recon, 2 la
 uniform mat4 u_proj, u_view, u_model;
 uniform float u_voxelSize;
 uniform float u_showRecon;
-out vec3 v_color; out vec3 v_normal; flat out float v_cull;
+out vec3 v_color; out vec3 v_normal; flat out float v_cull; flat out float v_recon;
 void main() {
   v_cull = (a_type > 0.5 && u_showRecon < 0.5) ? 1.0 : 0.0;
+  v_recon = (a_type > 0.5) ? 1.0 : 0.0;
   gl_Position = u_proj * u_view * u_model * vec4(a_offset + a_cubePos * u_voxelSize, 1.0);
   v_normal = mat3(u_model) * a_normal;
   if (a_type < 0.5)       v_color = vec3(0.55, 0.60, 0.68);   // input  (grey)
@@ -204,10 +217,12 @@ void main() {
 }`;
 const FS_VOXEL = `#version 300 es
 precision highp float;
-in vec3 v_color; in vec3 v_normal; flat in float v_cull;
+in vec3 v_color; in vec3 v_normal; flat in float v_cull; flat in float v_recon;
+uniform float u_wipeX;
 out vec4 fragColor;
 void main() {
   if (v_cull > 0.5) discard;
+  if (v_recon > 0.5 && gl_FragCoord.x < u_wipeX) discard;
   vec3 N = normalize(v_normal);
   vec3 L = normalize(vec3(0.45, 0.85, 0.35));
   float diff = max(dot(N, L), 0.0);
@@ -385,6 +400,11 @@ class Demo {
 
     // Last GET /cache response; gates the "Load Cached Result" button.
     this.cache = null;
+
+    // Before/after wipe: a screen-space divider. Left of it the model's voxels
+    // are dropped, so the same image reads as input | reconstruction. Stored as
+    // a fraction of the viewport so it survives a resize.
+    this.wipe = { on: false, x: 0.5 };
 
     // Display orientation of the volume, from the dataset's
     // INITIAL_VOLUMES_ROTATION. Render-only -- see M4.rotationXYZ.
@@ -718,6 +738,7 @@ class Demo {
     gl.uniformMatrix4fv(gl.getUniformLocation(prog, "u_model"), false, this.modelRot);
     gl.uniform1f(gl.getUniformLocation(prog, "u_pointSize"), this.pointSize * dpr);
     gl.uniform1f(gl.getUniformLocation(prog, "u_showRecon"), this.showRecon ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_wipeX"), this._wipeXPixels());
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.POINTS, 0, this.count);
     gl.bindVertexArray(null);
@@ -733,6 +754,7 @@ class Demo {
     gl.uniformMatrix4fv(gl.getUniformLocation(p, "u_model"), false, this.modelRot);
     gl.uniform1f(gl.getUniformLocation(p, "u_voxelSize"), this.voxelSize);
     gl.uniform1f(gl.getUniformLocation(p, "u_showRecon"), this.showRecon ? 1.0 : 0.0);
+    gl.uniform1f(gl.getUniformLocation(p, "u_wipeX"), this._wipeXPixels());
     gl.bindVertexArray(this.cubeVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, this.count);
     gl.bindVertexArray(null);
@@ -799,6 +821,35 @@ class Demo {
     const step = Math.min(MAX_FRAME_SECONDS, Math.max(0, dt));
     this.spin.angle = (this.spin.angle + step * SPIN_DEG_PER_SEC) % 360;
     this._updateModelRot();
+  }
+
+  /**
+   * Divider position in DRAWING-BUFFER pixels for the shaders, or -1 when the
+   * wipe is off (gl_FragCoord.x is never < -1, so nothing is clipped).
+   * Drawing-buffer, not CSS, pixels: gl_FragCoord is in the former.
+   */
+  _wipeXPixels() {
+    return this.wipe.on ? this.wipe.x * this.gl.drawingBufferWidth : -1.0;
+  }
+
+  /** Show/hide the wipe and keep the overlay in step. */
+  setWipe(on) {
+    this.wipe.on = !!on;
+    // A wipe with the reconstruction hidden would show nothing on either side.
+    if (this.wipe.on && !this.showRecon) {
+      this.showRecon = true;
+      document.getElementById("toggleRecon").checked = true;
+    }
+    const box = document.getElementById("toggleWipe");
+    if (box) box.checked = this.wipe.on;
+    document.getElementById("wipe").hidden = !this.wipe.on;
+    this._layoutWipe();
+  }
+
+  /** Position the DOM overlay at the divider (CSS pixels). */
+  _layoutWipe() {
+    document.getElementById("wipe").style.left =
+      `${(this.wipe.x * this.canvas.clientWidth).toFixed(1)}px`;
   }
 
   /** The red box around the region the bottom panel's projections came from. */
@@ -990,6 +1041,10 @@ class Demo {
     document.getElementById("toggleCropBox").addEventListener("change", (e) => {
       this.showCropBox = e.target.checked;
     });
+    document.getElementById("toggleWipe").addEventListener("change", (e) => {
+      this.setWipe(e.target.checked);
+    });
+    this._bindWipeDrag();
     document.getElementById("toggleAnimate").addEventListener("change", (e) => {
       this.setAnimate(e.target.checked);
     });
@@ -1140,6 +1195,39 @@ ${(entry.added || 0).toLocaleString()} voxels`;
     b.disabled = false;
   }
 
+  /** Drag the divider. Events are stopped here so the camera never sees them. */
+  _bindWipeDrag() {
+    const wipe = document.getElementById("wipe");
+    let dragging = false;
+
+    const moveTo = (clientX) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = (clientX - rect.left) / Math.max(1, rect.width);
+      this.wipe.x = Math.min(1, Math.max(0, x));
+      this._layoutWipe();
+    };
+
+    wipe.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      wipe.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();                  // not a camera drag
+    });
+    wipe.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      moveTo(e.clientX);
+      e.stopPropagation();
+    });
+    const end = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { wipe.releasePointerCapture(e.pointerId); } catch (_) {}
+      e.stopPropagation();
+    };
+    wipe.addEventListener("pointerup", end);
+    wipe.addEventListener("pointercancel", end);
+  }
+
   _bindPointer() {
     const c = this.canvas;
     // Attract mode watches for ANY interaction, including the control panel --
@@ -1217,6 +1305,7 @@ ${(entry.added || 0).toLocaleString()} voxels`;
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.floor(this.canvas.clientWidth * dpr);
     this.canvas.height = Math.floor(this.canvas.clientHeight * dpr);
+    this._layoutWipe();          // the divider is stored as a fraction, so re-place it
   }
 }
 

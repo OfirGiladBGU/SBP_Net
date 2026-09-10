@@ -67,6 +67,25 @@
     #panel figcaption { font-size: 10px; color: #9aa4bb; margin-top: 3px; }
     #flipBtn.after { border-color: #43d17a; } #flipBtn.before { border-color: var(--accent); }
 
+    /* Before/after wipe: a draggable divider over the canvas. The container is
+       zero-width and sits AT the divider, so children position either side. */
+    #wipe { position: fixed; top: 0; bottom: 0; width: 0; z-index: 7; user-select: none; }
+    #wipe .line { position: absolute; top: 0; bottom: 0; left: -1px; width: 2px;
+      background: linear-gradient(to bottom, rgba(110,168,255,0), #6ea8ff 12%, #6ea8ff 88%, rgba(110,168,255,0)); }
+    /* Invisible, wider hit area -- a 2px line is unfair to grab. */
+    #wipe .hit { position: absolute; top: 0; bottom: 0; left: -9px; width: 18px; cursor: ew-resize; }
+    #wipe .grip { position: absolute; top: 50%; left: -13px; width: 26px; height: 46px;
+      margin-top: -23px; border-radius: 8px; background: var(--panel); border: 1px solid var(--accent);
+      color: var(--fg); display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: ew-resize; backdrop-filter: blur(6px); }
+    /* Labels ride at the top, clear of the object -- at mid-height they sit on
+       top of the very thing being compared. The grip stays centred, where a
+       comparison slider's handle is expected. */
+    #wipe .tag { position: absolute; top: 18px; font-size: 11px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase; color: #9aa4bb; white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none; }
+    #wipe .tag.before { right: 22px; } #wipe .tag.after { left: 22px; color: #43d17a; }
+
     #loader { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
       background: rgba(5, 7, 12, 0.55); backdrop-filter: blur(2px); z-index: 20; cursor: wait; }
     #loader.on { display: flex; }
@@ -111,6 +130,7 @@
     <label><span>Voxel view (lit)</span><input id="toggleVoxel" type="checkbox" checked /></label>
     <label id="pointSizeRow">Point size <input id="pointSize" type="range" min="1" max="12" step="0.5" value="4" /></label>
     <label><span>Show reconstructed</span><input id="toggleRecon" type="checkbox" checked /></label>
+    <label title="Split the view: input only on the left of the divider, reconstruction on the right. Drag the handle to wipe across."><span>Before/after wipe</span><input id="toggleWipe" type="checkbox" /></label>
     <label title="Turntable: spins the model 360° horizontally. Drag-to-rotate is disabled while it runs; pan and zoom still work."><span>Animate (spin)</span><input id="toggleAnimate" type="checkbox" /></label>
     <label title="Start spinning by itself after 30s untouched, and stop on the next interaction"><span>Spin when idle</span><input id="toggleIdleSpin" type="checkbox" checked /></label>
     <div class="row">
@@ -119,6 +139,15 @@
     </div>
     <button id="fullBtn">Run Full Inference</button>
     <button id="cacheBtn" disabled>Load Cached Result</button>
+  </div>
+
+  <!-- Sits above the canvas so dragging it never reaches the trackball. -->
+  <div id="wipe" hidden>
+    <div class="line"></div>
+    <div class="hit"></div>
+    <div class="grip">&#8596;</div>
+    <span class="tag before">before</span>
+    <span class="tag after">after</span>
   </div>
 
   <div id="status">ready</div>

@@ -232,6 +232,37 @@ skips what is already cached), so the demo machine starts out warm.
   That would need per-user entries and a different identity scheme than
   "pristine dataset volume", so it is deliberately not started here.
 
+### Phase 7 — Presentation
+
+**DONE — turntable.** `Animate (spin)` rotates the model 360° horizontally about
+the world vertical, composed on top of the dataset's `INITIAL_VOLUMES_ROTATION`
+(spin-after-base, so it is a turntable whatever the base orientation is). While
+it runs the trackball is disabled — two things driving one orientation would
+stutter and drift — but pan, zoom and click stay live. `Spin when idle` starts it
+after 30 s untouched and stops on the next input, without ever overwriting the
+user's own Animate setting.
+
+**DONE — before/after wipe.** A draggable vertical divider: input only to its
+left, reconstruction to its right, so the fix reads as one image instead of a
+toggle the viewer has to remember. Built as planned — a screen-space clip
+(`u_wipeX` vs `gl_FragCoord.x`) discarding model-added voxels left of the line,
+in the points, voxel AND pick shaders, so nothing hidden is clickable. No second
+render pass, no extra geometry; composes with the turntable and the crop box.
+Enabling it re-shows the reconstruction, since otherwise both sides would match.
+
+**Still open (deferred):**
+
+- **Screenshot / GIF export**, behind a debug/dev section. Useful for README
+  animations of the reconstruction filling in. Note the canvas is currently
+  created with `preserveDrawingBuffer: false`, so a capture path has to either
+  flip that (costs a little performance on every frame) or read pixels in the
+  same frame it drew and composite them itself. A GIF of a full turn at 20 fps is
+  ~400 frames, so expect this to be the heavy one — encode off the main thread or
+  write frames out and assemble them offline.
+- Ruled out for now (revisit only if the demo needs more): auto-orbit after a
+  click, fading the before/after toggle, and per-dataset "story" presets of
+  camera pose + interesting click coordinates.
+
 ### Phase 8 — Fast dataset switching (DONE)
 
 Switching datasets relaunched the worker, ~18s, because `configs_parser` bakes
@@ -256,35 +287,6 @@ tracked as coordinates as they arrive instead of being rescanned. Result:
 Verified equal to a restart, not just fast: an in-process swap and a cold process
 produce byte-identical reconstructions (same SHA1 of the output cube), and heavy
 switching leaves per-dataset results unchanged.
-
-### Phase 7 — Presentation
-
-**DONE — turntable.** `Animate (spin)` rotates the model 360° horizontally about
-the world vertical, composed on top of the dataset's `INITIAL_VOLUMES_ROTATION`
-(spin-after-base, so it is a turntable whatever the base orientation is). While
-it runs the trackball is disabled — two things driving one orientation would
-stutter and drift — but pan, zoom and click stay live. `Spin when idle` starts it
-after 30 s untouched and stops on the next input, without ever overwriting the
-user's own Animate setting.
-
-**Still open (deferred):**
-
-- **Screenshot / GIF export**, behind a debug/dev section. Useful for README
-  animations of the reconstruction filling in. Note the canvas is currently
-  created with `preserveDrawingBuffer: false`, so a capture path has to either
-  flip that (costs a little performance on every frame) or read pixels in the
-  same frame it drew and composite them itself. A GIF of a full turn at 20 fps is
-  ~400 frames, so expect this to be the heavy one — encode off the main thread or
-  write frames out and assemble them offline.
-- **Before/after wipe.** A vertical divider draggable across the viewport:
-  original volume to the left of it, reconstructed to the right, so the fix reads
-  as a single image. Cheapest implementation is a clip plane in screen space —
-  pass the divider's x to the fragment shaders and `discard` reconstructed voxels
-  left of it (and, if wanted, original-only voxels right of it). No second render
-  pass, no extra geometry, and it composes with the turntable.
-- Ruled out for now (revisit only if the demo needs more): auto-orbit after a
-  click, fading the before/after toggle, and per-dataset "story" presets of
-  camera pose + interesting click coordinates.
 
 ---
 

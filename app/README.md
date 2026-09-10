@@ -279,6 +279,16 @@ fill (see [Full-inference cache](#full-inference-cache)).
 
 After a click, the **bottom panel** shows the 6 projections of that cube with a
 **Before / After** flip — the 2D input the network saw vs. the output it produced.
+**Before/after wipe** splits the view with a draggable divider: left of it is
+the **input only**, right of it is the **reconstruction** — so the fix reads as a
+single image instead of a toggle you have to remember. It is a screen-space clip
+in the fragment shaders (`u_wipeX` vs `gl_FragCoord.x`, discarding model-added
+voxels left of the line), so there is no second render pass and it composes with
+the turntable and the crop box. Picking uses the same rule — you can't click a
+voxel the wipe is hiding — and turning it on re-enables *Show reconstructed*,
+since otherwise both sides would look identical. Drag the handle, or anywhere on
+the divider.
+
 That panel also carries the **Crop box** toggle, which outlines the same cube in
 the 3D view in red — so you can see exactly which region those projections came
 from. It lives there rather than in the view controls because it describes that
