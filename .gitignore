@@ -185,3 +185,6 @@ conv_onet/
 orex/
 logs*/
 archive*/
+
+# App specific files 
+app/cache/

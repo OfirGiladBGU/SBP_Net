@@ -274,7 +274,8 @@ def single_predict(args: argparse.Namespace,
                    data_3d_folder=None, data_2d_folder=None,  # For offline mode only
                    log_data=None, enable_debug=True,
                    run_2d_flow=True, run_3d_flow=True,
-                   export_2d=True, export_3d=True):
+                   export_2d=True, export_3d=True,
+                   return_details=False):  # For online/interactive mode: return the reconstruction (+2D in/out) in memory
     if args.mode == "offline" and not os.path.exists(data_3d_filepath):
         raise ValueError(f"File: {data_3d_filepath} doesn't exist!")
 
@@ -429,6 +430,20 @@ def single_predict(args: argparse.Namespace,
                     data_3d_filepath=data_3d_filepath,
                     data_3d_output=data_3d_output
                 )
+
+            # Interactive/online mode: hand results back in memory (no disk round-trip).
+            # Returns the reconstructed 3D cube plus the 2D model input/output (the
+            # 6-view "before"/"after" the network) for the demo's projections panel.
+            if return_details is True:
+                def _views_to_numpy(data_2d):
+                    if data_2d is None:
+                        return None
+                    return np.round(data_2d.detach().cpu().numpy() * 255).astype(np.uint8)  # (6, H, W)
+                return {
+                    "output_3d": data_3d_output.detach().cpu().numpy(),
+                    "input_2d": _views_to_numpy(data_2d_output if not run_2d_flow else data_2d_input),
+                    "output_2d": _views_to_numpy(data_2d_output),
+                }
         else:
             pass
 

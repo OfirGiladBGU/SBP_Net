@@ -1,0 +1,18 @@
+# Demo dataset descriptor -- see app/app_configs.py.
+# Paths are relative to the repository root.
+LABEL: "PipeForge3D PCD"
+ORDER: 3
+
+CONFIG_FILENAME: "experiment1/PipeForge3DPCD_Best_LC_32.yaml"
+VOLUMES_PATH: "data/PipeForge3DPCD_Best/eval"
+DEFAULT_VOLUME_PATH: "data/PipeForge3DPCD_Best/eval/50.npy"
+
+# Display orientation for every volume of this dataset, [x, y, z] degrees,
+# applied about the volume's centre (extrinsic X, then Y, then Z). It rotates
+# the RENDERED model only -- voxel indices, clicks and the backend are
+# untouched. Use it so an object stands up the way it reads best (and so a
+# horizontal turntable spin looks right).
+#   world X = array axis 0, Y = axis 1, Z = axis 2, so a np.rot90(k=1) step in
+#   a plane is +/-90 here: axes=(0,2) -> [0, -90, 0], axes=(1,2) -> [90, 0, 0],
+#   axes=(0,1) -> [0, 0, 90]. Flip the sign if it comes out mirrored.
+INITIAL_VOLUMES_ROTATION: [0, 0, 0]

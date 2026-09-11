@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SBP-Net Interactive Demo</title>
+  <style>
+    :root { --bg: #0b0e14; --panel: rgba(18, 22, 32, 0.85); --fg: #e6e9ef; --accent: #6ea8ff; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #gl { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+
+    #hud { position: fixed; top: 12px; left: 12px; padding: 12px 14px; background: var(--panel);
+      border: 1px solid #2a3145; border-radius: 10px; backdrop-filter: blur(6px); max-width: 320px;
+      font-size: 13px; line-height: 1.5; user-select: none; }
+    #hud h1 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+    #hud .meta { color: #9aa4bb; font-size: 12px; }
+    #hud .legend { display: flex; gap: 14px; margin-top: 8px; }
+    #hud .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot.orig { background: #7f8a9e; } .dot.recon { background: #43d17a; } .dot.hi { background: #ffcf4d; }
+    .dot.crop { background: transparent; border: 2px solid #ff4750; border-radius: 2px; width: 9px; height: 9px; }
+
+    #controls { position: fixed; top: 12px; right: 12px; padding: 12px 14px; background: var(--panel);
+      border: 1px solid #2a3145; border-radius: 10px; backdrop-filter: blur(6px); font-size: 13px;
+      display: flex; flex-direction: column; gap: 10px; width: 220px; user-select: none; }
+    #controls label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    #controls input[type=range] { flex: 1; }
+    #controls select { flex: 1; min-width: 0; background: #1b2233; color: var(--fg);
+      border: 1px solid #33405c; border-radius: 6px; padding: 5px 6px; font-size: 12px; }
+    #controls select:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Point size only applies to the points renderer -- greyed out in voxel view. */
+    #controls label.off { opacity: 0.45; }
+    #controls label.off input { cursor: not-allowed; }
+    #controls .sep { border-top: 1px solid #2a3145; margin: 2px 0; }
+    #controls .row { display: flex; gap: 8px; }
+    button { flex: 1; cursor: pointer; background: #1b2233; color: var(--fg); border: 1px solid #33405c;
+      padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+    button:hover { background: #232c42; } button:active { background: #2c3654; }
+    button.toggled { background: #2b3d63; border-color: var(--accent); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; background: #1b2233; }
+    /* A cached result is instant -- make it look like the fast path. */
+    #cacheBtn:not(:disabled) { border-color: #43d17a; }
+    /* The voxel count is a second line on purpose -- see _refreshCacheState. */
+    #cacheBtn { white-space: pre-line; line-height: 1.3; }
+
+    #status { position: fixed; bottom: 12px; left: 12px; padding: 8px 12px; background: var(--panel);
+      border: 1px solid #2a3145; border-radius: 8px; font-size: 12px; color: #9aa4bb; z-index: 9; }
+
+    /* bottom 2D projections panel */
+    #panel { position: fixed; bottom: 0; left: 0; right: 0; padding: 8px 12px 10px; background: var(--panel);
+      border-top: 1px solid #2a3145; backdrop-filter: blur(6px); display: none; z-index: 8; }
+    #panel.on { display: block; }
+    #panel .head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; font-size: 12px; }
+    #panel .head .ttl { font-weight: 600; }
+    #panel .head .sub { color: #9aa4bb; }
+    #cropBoxRow { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      padding: 4px 8px; border: 1px solid #33405c; border-radius: 8px; background: #1b2233;
+      user-select: none; }
+    #cropBoxRow:hover { background: #232c42; }
+    #cropBoxRow:has(:checked) { border-color: #ff4750; }
+    #panel #views { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    #panel figure { margin: 0; text-align: center; }
+    #panel figure img { width: 68px; height: 68px; image-rendering: pixelated; border-radius: 6px;
+      border: 1px solid #33405c; background: #000; }
+    #panel figcaption { font-size: 10px; color: #9aa4bb; margin-top: 3px; }
+    #flipBtn.after { border-color: #43d17a; } #flipBtn.before { border-color: var(--accent); }
+
+    /* Before/after wipe: a draggable divider over the canvas. The container is
+       zero-width and sits AT the divider, so children position either side. */
+    #wipe { position: fixed; top: 0; bottom: 0; width: 0; z-index: 7; user-select: none; }
+    #wipe .line { position: absolute; top: 0; bottom: 0; left: -1px; width: 2px;
+      background: linear-gradient(to bottom, rgba(110,168,255,0), #6ea8ff 12%, #6ea8ff 88%, rgba(110,168,255,0)); }
+    /* Invisible, wider hit area -- a 2px line is unfair to grab. */
+    #wipe .hit { position: absolute; top: 0; bottom: 0; left: -9px; width: 18px; cursor: ew-resize; }
+    #wipe .grip { position: absolute; top: 50%; left: -13px; width: 26px; height: 46px;
+      margin-top: -23px; border-radius: 8px; background: var(--panel); border: 1px solid var(--accent);
+      color: var(--fg); display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: ew-resize; backdrop-filter: blur(6px); }
+    /* Labels ride at the top, clear of the object -- at mid-height they sit on
+       top of the very thing being compared. The grip stays centred, where a
+       comparison slider's handle is expected. */
+    #wipe .tag { position: absolute; top: 18px; font-size: 11px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase; color: #9aa4bb; white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,.9); pointer-events: none; }
+    #wipe .tag.before { right: 22px; } #wipe .tag.after { left: 22px; color: #43d17a; }
+
+    #loader { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(5, 7, 12, 0.55); backdrop-filter: blur(2px); z-index: 20; cursor: wait; }
+    #loader.on { display: flex; }
+    #loader .box { display: flex; flex-direction: column; align-items: center; gap: 14px;
+      padding: 22px 28px; background: var(--panel); border: 1px solid #33405c; border-radius: 12px; min-width: 260px; }
+    .spinner { width: 34px; height: 34px; border: 3px solid #33405c; border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loaderBar { width: 100%; height: 6px; background: #26304a; border-radius: 4px; overflow: hidden; display: none; }
+    #loaderBar.on { display: block; }
+    #loaderBar > div { height: 100%; width: 0%; background: var(--accent); transition: width 0.15s; }
+  </style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <div id="hud">
+    <h1>SBP-Net &mdash; Interactive Reconstruction</h1>
+    <div class="meta" id="meta">loading volume&hellip;</div>
+    <div class="legend">
+      <span><i class="dot orig"></i> input</span>
+      <span><i class="dot recon"></i> reconstructed</span>
+      <span><i class="dot hi"></i> last</span>
+    </div>
+    <div class="meta" style="margin-top:8px">
+      Drag: rotate &nbsp;&middot;&nbsp; Wheel: zoom &nbsp;&middot;&nbsp; Right/Shift-drag: pan<br/>
+      Ctrl/Alt-drag: roll &nbsp;&middot;&nbsp; Recenter resets the view<br/>
+      <b>Click a point</b> to reconstruct a cube around it.
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="reloadBtn" title="Relaunch the backend on the current dataset and reload the page — picks up edited configs, code and data">Reload App</button>
+    <div class="sep"></div>
+    <label><span>Dataset</span><select id="configSel"></select></label>
+    <label><span>Volume</span><select id="volumeSel"></select></label>
+    <button id="loadFileBtn" title="Load a volume from anywhere on this machine — it does not have to be in the dataset's folder">Load file&hellip;</button>
+    <!-- Hidden: the button drives it, so the control panel keeps one visual style. -->
+    <input id="fileInput" type="file" style="display:none"
+           accept=".nii.gz,.npy,.npz,.pcd,.ply,.off,.obj,.binvox" />
+    <div class="sep"></div>
+    <label><span>Voxel view (lit)</span><input id="toggleVoxel" type="checkbox" checked /></label>
+    <label id="pointSizeRow">Point size <input id="pointSize" type="range" min="1" max="12" step="0.5" value="4" /></label>
+    <label><span>Show reconstructed</span><input id="toggleRecon" type="checkbox" checked /></label>
+    <label title="Split the view: input only on the left of the divider, reconstruction on the right. Drag the handle to wipe across."><span>Before/after wipe</span><input id="toggleWipe" type="checkbox" /></label>
+    <label title="Turntable: spins the model 360° horizontally. Drag-to-rotate is disabled while it runs; pan and zoom still work."><span>Animate (spin)</span><input id="toggleAnimate" type="checkbox" /></label>
+    <label title="Start spinning by itself after 30s untouched, and stop on the next interaction"><span>Spin when idle</span><input id="toggleIdleSpin" type="checkbox" checked /></label>
+    <div class="row">
+      <button id="resetBtn">Reset</button>
+      <button id="fitBtn">Recenter</button>
+    </div>
+    <button id="fullBtn">Run Full Inference</button>
+    <button id="cacheBtn" disabled>Load Cached Result</button>
+  </div>
+
+  <!-- Sits above the canvas so dragging it never reaches the trackball. -->
+  <div id="wipe" hidden>
+    <div class="line"></div>
+    <div class="hit"></div>
+    <div class="grip">&#8596;</div>
+    <span class="tag before">before</span>
+    <span class="tag after">after</span>
+  </div>
+
+  <div id="status">ready</div>
+
+  <div id="panel">
+    <div class="head">
+      <span class="ttl">2D projections of last cube</span>
+      <button id="flipBtn" class="after">Showing: After &nbsp;&#8635;</button>
+      <!-- Lives here, not in the view controls: it outlines the very cube these
+           projections came from, and shares their lifetime exactly. -->
+      <label id="cropBoxRow" title="Outline this cube's crop region in the 3D view">
+        <input id="toggleCropBox" type="checkbox" /><span>Crop box</span><i class="dot crop"></i>
+      </label>
+      <span class="sub">input the 2D network saw vs. the output it produced</span>
+    </div>
+    <div id="views"></div>
+  </div>
+
+  <div id="loader"><div class="box">
+    <div class="spinner"></div>
+    <div id="loaderText">Reconstructing&hellip;</div>
+    <div id="loaderBar"><div></div></div>
+    <button id="cancelBtn" style="display:none">Cancel</button>
+  </div></div>
+
+  <script src="/static/main.js"></script>
+</body>
+</html>

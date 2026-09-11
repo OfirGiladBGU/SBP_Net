@@ -19,7 +19,7 @@ def configure_wandb(args, model, init=True):
         API_KEY = os.environ.get("WANDB_API_KEY")
         wandb.login(key=API_KEY)
 
-        wandb_project = "TreesAutoEncoder"
+        wandb_project = "SBP-Net"
         init_timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         wandb_name = f"{model.model_name}>{init_timestamp}"
         wandb.init(

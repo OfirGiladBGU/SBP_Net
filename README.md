@@ -119,6 +119,29 @@ This tool supports an **interactive mode** for live viewing, or you can configur
 
 ---
 
+## Interactive Demo
+
+The repository also ships a browser-based demo of the method. Orbit a structure,
+**click a point on it**, and the model reconstructs a cube around that click and
+patches the new voxels into the view live — or run the full sliding-box inference
+over the whole volume and watch it fill in. A before/after wipe lets you compare
+the input and the reconstruction in a single image.
+
+```bash
+pip install flask          # see app/extra_requirements.txt
+python app/server.py       # then open http://127.0.0.1:5000/
+```
+
+Everything runs locally: the browser renders (WebGL2) and Python holds the volume
+and the model and runs the *real* inference pipeline, so no VTK or other desktop
+3D stack is involved. Datasets are declared in `app/configs/*.yaml` and can be
+switched from the UI. See [`app/README.md`](app/README.md) for the full details.
+
+The demo uses the same weights and volumes as the pipeline above — both are
+available from our [Google Drive](https://drive.google.com/drive/folders/1byYa2RnqDiDiQevLBdsWS4xSF5643C_m?usp=drive_link).
+
+---
+
 ## Data Setup
 
 Our pipeline supports multiple data representations (Voxel Grids, Meshes, and Point Clouds). Below is an example of setting up a medical dataset (e.g., [Parse2022](https://parse2022.grand-challenge.org/)).
@@ -202,11 +225,14 @@ This code builds upon and compares against several excellent works in the 3D vis
 
 If you find this code or our methodology useful in your research, please consider citing our paper:
 ```bibtex
-@inproceedings{gilad2026SBPNet,
-    title        = {SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections},
-    author       = {Gilad, Ofir and Sharf, Andrei},
-    booktitle    = {ICIP},
-    year         = {2026},
-    organization = {IEEE},
-}
+@INPROCEEDINGS{11630432,
+  author={Gilad, Ofir and Sharf, Andrei},
+  booktitle={2026 IEEE International Conference on Image Processing (ICIP)}, 
+  title={SBP-Net: Learning Thin Structure Reconstruction with Sliding-Box Projections}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Modeling;Three-dimensional displays;Printing;Arteries;Filling;Distance measurement;Clouds;Geometry;Shape;Dies;3D reconstruction;Medical CT data;Industrial 3D pipes},
+  doi={10.1109/ICIP61757.2026.11630432}}
 ```

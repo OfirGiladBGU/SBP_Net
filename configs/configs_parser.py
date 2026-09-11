@@ -1,3 +1,4 @@
+import os
 import pathlib
 import yaml
 from enum import Enum
@@ -93,6 +94,18 @@ CONFIG_FILENAME = "parse2022_LC_32.yaml"
 # CONFIG_FILENAME = "tests/parse2022_LC_32_v3.yaml"
 # CONFIG_FILENAME = "tests/parse2022_LC_32_v4.yaml"
 # CONFIG_FILENAME = "tests/parse2022_LC_32_v5.yaml"
+
+
+#############################
+# Environment override      #
+#############################
+# The interactive demo (app/server.py) lets the user pick a dataset at runtime.
+# Everything below is computed once at import time and `from configs_parser
+# import *` copies those values into ~20 other modules, so the choice cannot be
+# changed after import -- the demo instead launches a worker process with
+# SBP_CONFIG_FILENAME set, and the worker picks it up right here.
+# Unset (the normal case) => the CONFIG_FILENAME selected above is used.
+CONFIG_FILENAME = os.environ.get("SBP_CONFIG_FILENAME", CONFIG_FILENAME)
 
 
 #####################
