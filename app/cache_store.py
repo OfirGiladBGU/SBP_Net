@@ -36,6 +36,7 @@ import time
 
 import numpy as np
 
+ROOT_PATH = pathlib.Path(__file__).absolute().parent.parent
 CACHE_PATH = pathlib.Path(__file__).absolute().parent.joinpath("cache")
 
 # Bump when the stored format changes in a way old entries can't satisfy.
@@ -52,6 +53,42 @@ def _volume_digest(volume: np.ndarray) -> str:
     digest.update(str(binary.shape).encode())
     digest.update(binary.tobytes())
     return digest.hexdigest()
+
+
+def _effective_weights_path(explicit, dataset_output_folder, model_name):
+    """The .pth `init_pipeline_models` would actually load.
+
+    Most configs leave WEIGHTS_*_PATH unset and fall back to a name derived from
+    the dataset and the model -- see evaluator/predict_pipeline.init_pipeline_models.
+    Fingerprinting only the explicit setting would therefore pin nothing at all
+    for those configs, which is most of them.
+    """
+    if explicit:
+        resolved = pathlib.Path(str(explicit))
+        return resolved if resolved.is_absolute() else ROOT_PATH.joinpath(resolved)
+    if not model_name or not dataset_output_folder:
+        return None
+    return ROOT_PATH.joinpath("weights", f"Network_{dataset_output_folder}_{model_name}.pth")
+
+
+def _fingerprint(path):
+    """(size, mtime_ns) of a file, or None if it isn't there."""
+    if path is None:
+        return None
+    try:
+        stat = pathlib.Path(path).stat()
+    except OSError:
+        return None                         # absent: loading it would fail anyway
+    return [int(stat.st_size), int(stat.st_mtime_ns)]
+
+
+def _demo_model_names():
+    """The 2D/3D models the demo runs, for resolving fallback weights names."""
+    try:
+        from app import reconstruct_core
+        return reconstruct_core._MODEL_2D, reconstruct_core._MODEL_3D
+    except Exception:
+        return "", ""                       # not in a worker: nothing to resolve
 
 
 def pipeline_signature() -> dict:
@@ -71,7 +108,9 @@ def pipeline_signature() -> dict:
         APPLY_CONTINUITY_FIX_2D, APPLY_CONTINUITY_FIX_3D,
         PREDICT_CONNECTIVITY_TYPE_2D, PREDICT_CONNECTIVITY_TYPE_3D,
         BINARY_DILATION, WEIGHTS_2D_PATH, WEIGHTS_3D_PATH,
+        DATASET_OUTPUT_FOLDER,
     )
+    model_2d, model_3d = _demo_model_names()
     return {
         "config_filename": CONFIG_FILENAME,
         "data_3d_size": list(DATA_3D_SIZE),
@@ -96,6 +135,13 @@ def pipeline_signature() -> dict:
         "binary_dilation": bool(BINARY_DILATION),
         "weights_2d": str(WEIGHTS_2D_PATH),
         "weights_3d": str(WEIGHTS_3D_PATH),
+        # ...and the identity of the file that will actually be loaded, so
+        # retraining over an existing .pth invalidates instead of silently
+        # serving the previous model's predictions.
+        "weights_2d_file": _fingerprint(
+            _effective_weights_path(WEIGHTS_2D_PATH, DATASET_OUTPUT_FOLDER, model_2d)),
+        "weights_3d_file": _fingerprint(
+            _effective_weights_path(WEIGHTS_3D_PATH, DATASET_OUTPUT_FOLDER, model_3d)),
     }
 
 
@@ -235,6 +281,11 @@ def replay(volume: np.ndarray, added: np.ndarray, total_cubes: int = 0, chunks: 
     result = (volume > 0.5).astype(np.uint8)
     if len(added):
         result[added[:, 0], added[:, 1], added[:, 2]] = 1
+        # Stream only what is NOT already on screen. A cached result can be
+        # loaded on top of click reconstructions, and re-sending voxels the
+        # frontend already has would duplicate points and inflate the count.
+        # `result` above still merges ALL of them -- only the events are thinned.
+        added = added[volume[added[:, 0], added[:, 1], added[:, 2]] <= 0.5]
 
     steps = max(1, min(int(chunks), len(added))) if len(added) else 1
     # Report progress against the real cube count when we know it, so a cached

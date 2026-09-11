@@ -462,15 +462,17 @@ def post_volume_select():
     """
     payload = request.get_json(force=True, silent=True) or {}
     requested = payload.get("path")
-    # Strict: an unknown path is an error, never a silent fallback to another volume.
-    resolved = STATE.config.find_volume(requested)
-    if resolved is None:
-        return jsonify({"error": f"'{requested}' is not a volume of dataset "
-                                 f"'{STATE.config.name}'"}), 400
 
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
     try:
+        # Resolved UNDER the lock: a dataset swap between the check and the load
+        # would otherwise seat the old dataset's volume in the new config.
+        # Strict: an unknown path is an error, never a silent fallback.
+        resolved = STATE.config.find_volume(requested)
+        if resolved is None:
+            return jsonify({"error": f"'{requested}' is not a volume of dataset "
+                                     f"'{STATE.config.name}'"}), 400
         volume, name, source_ext = volume_cache.load(CORE.load_demo_volume, resolved)
         STATE.load_volume(volume, name, source_ext, resolved)
         print(f"[Server] Volume -> {name} shape={STATE.volume.shape} "
@@ -545,14 +547,15 @@ def post_reconstruct():
     except (KeyError, TypeError, ValueError):
         return jsonify({"error": "expected integer fields x, y, z"}), 400
 
-    shape = STATE.volume.shape
-    if not (0 <= x < shape[0] and 0 <= y < shape[1] and 0 <= z < shape[2]):
-        return jsonify({"error": f"({x},{y},{z}) out of bounds {shape}"}), 400
-
     # The lock is both the UX signal and the concurrency lock (constraint 3).
     if not STATE.lock.acquire(blocking=False):
         return jsonify({"error": "busy", "detail": "a reconstruction is in flight"}), 409
     try:
+        # Bounds checked UNDER the lock: a dataset swap can change the shape, and
+        # a click validated against the old one would index out of the new volume.
+        shape = STATE.volume.shape
+        if not (0 <= x < shape[0] and 0 <= y < shape[1] and 0 <= z < shape[2]):
+            return jsonify({"error": f"({x},{y},{z}) out of bounds {shape}"}), 400
         result = CORE.reconstruct_at(STATE.volume, x, y, z, STATE.args, source_ext=STATE.source_ext)
         new_coords = result["new_coords"]
         if len(new_coords):
@@ -780,6 +783,12 @@ def _serve(cli):
     if config is None:
         raise SystemExit(f"[Server] Unknown dataset '{cli.config}'. "
                          f"Available: {[c.name for c in app_configs.list_configs()]}")
+
+    # Normally the supervisor sets this on our environment; when --serve is used
+    # directly (the debugger path) nobody has, and configs_parser would bind to
+    # the repo default and trip init_state's mismatch guard. Set it here, before
+    # init_state does the lazy pipeline import that reads it.
+    os.environ["SBP_CONFIG_FILENAME"] = config.config_filename
 
     init_state(config=config, volume_path=cli.volume, use_cuda=not cli.no_cuda)
     if not cli.no_prefetch:

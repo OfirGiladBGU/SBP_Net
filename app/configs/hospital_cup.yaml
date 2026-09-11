@@ -3,7 +3,7 @@
 LABEL: "Hospital CUP"
 ORDER: 4
 
-CONFIG_FILENAME: "experiment1/HospitalCUP_LC_32.yaml"
+CONFIG_FILENAME: "experiment1/HospitalCUP_LC_48.yaml"
 VOLUMES_PATH: "data/HospitalPCD/eval"
 DEFAULT_VOLUME_PATH: "data/HospitalPCD/eval/Hospital CUP 1in3.npy"
 

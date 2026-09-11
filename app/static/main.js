@@ -1007,6 +1007,9 @@ class Demo {
     try {
       const data = await (await fetch("/reset", { method: "POST" })).json();
       this._applySnapshot(data);            // same volume: keep the camera where it is
+      // The reconstruction is gone, so the projections and crop box that
+      // described it would be describing something no longer on screen.
+      this._clearPanel();
       this._setStatus(`reset — ${this.count.toLocaleString()} voxels`);
     } finally { this._setBusy(false); }
   }
@@ -1295,10 +1298,23 @@ ${(entry.added || 0).toLocaleString()} voxels`;
       total ? `Full inference — ${done}/${total} cubes (${pct}%)${extra}` : "Preparing full inference…";
   }
   _setStatus(s) { document.getElementById("status").textContent = s; }
+  /**
+   * Built as DOM nodes, not innerHTML: `d.name` can be a filename the user
+   * chose via "Load file…", and the backend preserves it verbatim. Interpolating
+   * that into markup would let a crafted filename run script in the page.
+   */
   _setMeta(d) {
-    const cfg = d.config_label ? `${d.config_label} &middot; ` : "";
-    document.getElementById("meta").innerHTML =
-      `${cfg}volume <b>${d.name}</b> &middot; ${d.shape.join("×")} &middot; cube ${d.cube_size}³`;
+    const meta = document.getElementById("meta");
+    meta.textContent = "";
+    const put = (text, tag = "span") => {
+      const el = document.createElement(tag);
+      el.textContent = text;
+      meta.appendChild(el);
+    };
+    if (d.config_label) put(`${d.config_label} · `);
+    put("volume ");
+    put(d.name, "b");
+    put(` · ${d.shape.join("×")} · cube ${d.cube_size}³`);
   }
 
   _resize() {

@@ -183,6 +183,13 @@ constraint), and the worker loads the models once for all of that dataset's
 volumes. A volume that fails is reported and does not stop the rest; the closing
 summary is read back off disk, so it shows what is genuinely cached.
 
+**After changing the validity key, rebuild everything.** Anything that alters
+`pipeline_signature()` — a new field, or retrained weights — invalidates *every*
+existing entry, since none of them can prove they match any more. Run
+`python app/build_cache.py` with **no `--configs`** so all datasets are covered;
+filtering it to the datasets you happen to be working on silently leaves the
+others cold, and they only surface later as "cache not found".
+
 ## Requirements
 
 Runs in the project's conda env (`SBP`: Python 3.10, torch + CUDA) plus **Flask**.
@@ -229,16 +236,16 @@ but the Dataset picker is then disabled (nothing could restart it) and
 
 | Method / path | Purpose |
 |---|---|
-| `GET /volume` | Current state: `{name, shape, cube_size, config, config_label, volume_path, original[], reconstructed[]}` (flat `x,y,z` voxel lists). |
+| `GET /volume` | Current state: `{name, shape, cube_size, config, config_label, rotation, volume_path, custom_volume, original, reconstructed}`. `original`/`reconstructed` are **packed**, not JSON arrays: `{enc, count, data}` where `data` is base64 of a flat `[x,y,z,…]` array (`enc` is `int16`, or `int32` if a volume exceeds 32767 on a side). Encoding ~921k integers as JSON text cost seconds per response; see `DemoState.pack_coords` and the frontend's `_decodeCoords`. |
 | `GET /configs` | Every `app/configs/` dataset + its volumes, which one is active, and `supervised` (whether a restart is possible). |
-| `POST /config` `{name, volume?}` | Switch dataset. Replies `{restarting:true}`, then the worker exits and the supervisor relaunches it on that config; poll `GET /volume` until it answers. `409` if busy, `501` if unsupervised. |
+| `POST /config` `{name, volume?, restart?}` | Switch dataset. Normally rebinds **in place** (~0.05s) and replies `{restarting:false, …snapshot}` — apply it directly. If the rebind can't be proven complete (or `restart:true` is sent, as **Reload App** does), it replies `{restarting:true}`, the worker exits and the supervisor relaunches it; poll `GET /volume` until it answers. `409` if busy. |
 | `POST /volume/select` `{path}` | Load another volume of the **active** dataset — no restart. Returns the new snapshot. `400` unless `path` is one of that dataset's volumes. |
 | `POST /volume/upload` (multipart `file`) | Load a volume from **anywhere** — it need not be in `VOLUMES_PATH`. Same config, no restart. The bytes go to a temp file (keeping the original extension), are read with the project's loader, and the copy is dropped. `400` on an unsupported/unreadable file, `413` over 512 MB. |
 | `GET /cache` | `{loadable, cacheable, reason, entry}` — whether a cached result can be **loaded** now, whether a fresh run would be **stored**, and why not. Drives the Load Cached Result button. |
 | `POST /reconstruct` `{x,y,z}` | Reconstruct a centered cube from the **current** state, OR it in, return newly-added voxels **plus** `views.before` / `views.after` (the 2D network input/output as PNGs). `409` if one is already in flight. |
 | `GET /full_inference?workers=N` | Run the paper's full stride-grid pipeline over the whole volume, **in parallel** (`workers` threads, default = machine-sized; `1` = sequential). **Server-Sent Events** stream per-cube progress incl. the cube's new voxels (`{type:"progress",done,total,added,new:[x,y,z,…]}`) for live drawing, then `{type:"done",…,cancelled}`. The merged result (partial if cancelled) replaces the state. `409` if busy. |
 | `POST /full_inference/cancel` | Signal an in-flight full run to stop after its current cube(s); the partial result is kept. Does not take the lock. |
-| `POST /reset` | Restore the original volume (drops all reconstructions). |
+| `POST /reset` | Restore the original volume (drops all reconstructions) and return the new snapshot. The UI also clears the projections panel and crop box, which described the reconstruction just removed. |
 
 ## Controls
 
