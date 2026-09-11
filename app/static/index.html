@@ -97,6 +97,11 @@
     #loaderBar { width: 100%; height: 6px; background: #26304a; border-radius: 4px; overflow: hidden; display: none; }
     #loaderBar.on { display: block; }
     #loaderBar > div { height: 100%; width: 0%; background: var(--accent); transition: width 0.15s; }
+    /* Escape hatch: revealed only once an operation has clearly stalled. */
+    #loaderEscape { display: none; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+    #loaderEscape.on { display: flex; }
+    #loaderEscape .hint { font-size: 11px; line-height: 1.45; color: #9aa4bb; text-align: center; }
+    #loaderEscape .row { display: flex; gap: 8px; width: 100%; }
   </style>
 </head>
 <body>
@@ -171,6 +176,13 @@
     <div id="loaderText">Reconstructing&hellip;</div>
     <div id="loaderBar"><div></div></div>
     <button id="cancelBtn" style="display:none">Cancel</button>
+    <div id="loaderEscape">
+      <div class="hint" id="loaderEscapeHint"></div>
+      <div class="row">
+        <button id="escCancelBtn" title="Abandon the request and return to the app">Cancel</button>
+        <button id="escReloadBtn" title="Reload the page — the only way to free connections the browser is holding open">Reload page</button>
+      </div>
+    </div>
   </div></div>
 
   <script src="/static/main.js"></script>

@@ -297,6 +297,11 @@ function program(gl, vs, fs) {
 // --------------------------------------------------------------------------- //
 // The demo app.                                                               //
 // --------------------------------------------------------------------------- //
+// How long an operation may hold the loader before the escape hatch appears.
+// Everything here is a localhost round trip, so 3s without an answer is a
+// symptom, not slowness -- see Demo._showEscape().
+const ESCAPE_AFTER_MS = 3000;
+
 class Demo {
   constructor(canvas) {
     this.canvas = canvas;
@@ -388,6 +393,9 @@ class Demo {
     this.showRecon = true;
     this.renderMode = "voxels";   // "voxels" (lit cubes) or "points"
     this.busy = false;
+    this.es = null;               // the live full-inference SSE stream, if any
+    this._inflight = new Set();   // AbortControllers of requests in flight
+    this._escapeTimer = null;     // reveals the loader's escape hatch (see _setBusy)
 
     // 2D projections panel state (last picked cube's before/after views).
     this.views = { before: {}, after: {} };
@@ -491,8 +499,102 @@ class Demo {
     this._refreshCacheState();
   }
 
+  /**
+   * fetch() with a deadline.
+   *
+   * Every request here is to our own localhost worker, so a request that has
+   * not come back in seconds is not slow -- it is never arriving. The usual
+   * cause is the browser's per-origin connection limit (~6 for Chromium): a
+   * leaked EventSource or an abandoned response keeps its connection checked
+   * out, and once all of them are, further fetches sit in the queue forever.
+   * Without a deadline that shows up as the loader spinning on "loading" with
+   * a backend that answers every other client instantly and no error anywhere.
+   * A timeout turns that silent hang into a message the user can act on.
+   */
+  async _fetch(url, opts = {}, timeoutMs = 20000) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    this._inflight.add(ctl);                    // so _cancelInflight() can reach it
+    try {
+      return await fetch(url, { ...opts, signal: ctl.signal });
+    } catch (e) {
+      if (e.name === "AbortError") {
+        // Distinguish "the user gave up" from "the deadline passed": the first
+        // is a normal outcome, the second is worth explaining.
+        if (ctl.cancelled) throw new Error("cancelled");
+        throw new Error(`the backend did not answer within ${Math.round(timeoutMs / 1000)}s — `
+          + "the page's connections to it may be exhausted; reload the page");
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      this._inflight.delete(ctl);
+    }
+  }
+
+  /** Abort every request in flight; each one's await rejects with "cancelled". */
+  _cancelInflight() {
+    for (const ctl of this._inflight) {
+      ctl.cancelled = true;
+      try { ctl.abort(); } catch (_) { /* already settled */ }
+    }
+    this._inflight.clear();
+  }
+
+  /**
+   * Give up on whatever the loader is waiting for and hand the app back.
+   *
+   * A deliberate force-unstick, not a graceful cancel -- it abandons the
+   * request rather than waiting for the backend to agree. Full inference has
+   * its own Cancel (which preserves the partial result), so this stays hidden
+   * while that one is on offer; here the priority is simply that the UI must
+   * never be a dead end.
+   */
+  _escapeCancel() {
+    this._cancelInflight();
+    if (this.es) {
+      // Tell the worker to stop too, or it keeps the pipeline lock and every
+      // later request comes back 409.
+      this._closeStream();
+      fetch("/full_inference/cancel", { method: "POST" }).then((r) => r.text()).catch(() => {});
+    }
+    this._showCancel(false);
+    this._progressOn(false);
+    this._setBusy(false);
+    this._setStatus("cancelled — the request was abandoned");
+  }
+
+  /**
+   * Reveal the escape hatch once an operation has clearly stalled.
+   *
+   * Everything here talks to a worker on localhost, so 3s without an answer
+   * already means something is wrong rather than slow. The hint names the
+   * likely cause: when the browser's per-origin connection pool is exhausted
+   * the request is still queued in the browser and has never reached the
+   * server, and cancelling frees the queue slot but NOT the pinned
+   * connections -- only reloading the page does that.
+   */
+  _showEscape(on) {
+    const box = document.getElementById("loaderEscape");
+    if (!box) return;                           // older markup: nothing to show
+    box.classList.toggle("on", on);
+    if (!on) return;
+    const stream = !!this.es;
+    document.getElementById("loaderEscapeHint").textContent = stream
+      ? "This is taking a while. You can stop waiting, or reload the page."
+      : "No answer from the backend yet. If reloading is the only thing that "
+        + "helps, the page's connections to it are exhausted.";
+  }
+
+  /** Close the full-inference stream, if one is open. Safe to call any time. */
+  _closeStream() {
+    if (!this.es) return;
+    try { this.es.close(); } catch (_) { /* already gone */ }
+    this.es = null;
+  }
+
   async loadVolume() {
-    const data = await (await fetch("/volume")).json();
+    const data = await (await this._fetch("/volume")).json();
     this._applySnapshot(data, true);
     this._setStatus(`loaded ${data.name} — ${this.count.toLocaleString()} voxels`);
   }
@@ -500,7 +602,7 @@ class Demo {
   // ----- dataset / volume pickers ----------------------------------------- //
   /** Populate both pickers from GET /configs (the app/configs/ descriptors). */
   async loadConfigs() {
-    const data = await (await fetch("/configs")).json();
+    const data = await (await this._fetch("/configs")).json();
     const cfgSel = document.getElementById("configSel");
     const volSel = document.getElementById("volumeSel");
 
@@ -545,7 +647,7 @@ class Demo {
     if (this.busy) return;
     this._setBusy(true, "Loading volume…");
     try {
-      const resp = await fetch("/volume/select", {
+      const resp = await this._fetch("/volume/select", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path }),
       });
@@ -568,7 +670,8 @@ class Demo {
     try {
       const form = new FormData();
       form.append("file", file);
-      const resp = await fetch("/volume/upload", { method: "POST", body: form });
+      const resp = await this._fetch("/volume/upload", { method: "POST", body: form },
+                                    180000);   // a big volume has to upload and decode
       const data = await resp.json();
       if (!resp.ok) {
         this._setStatus(`error: ${data.error || resp.status}${data.detail ? " — " + data.detail : ""}`);
@@ -596,15 +699,15 @@ class Demo {
   async reloadApp() {
     if (this.busy) return;
     const name = this.cache ? this.cache.config : null;
-    const active = name || (await (await fetch("/configs")).json()).active.config;
+    const active = name || (await (await this._fetch("/configs")).json()).active.config;
     this._setBusy(true, "Reloading app…");
     try {
       // restart:true on purpose -- a dataset switch rebinds in place (fast), but
       // Reload App is what you press after editing code, so it must relaunch.
-      const resp = await fetch("/config", {
+      const resp = await this._fetch("/config", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: active, restart: true }),
-      });
+      }, 60000);
       const data = await resp.json();
       if (!resp.ok) {
         const detail = Array.isArray(data.detail) ? data.detail.join("; ") : (data.detail || "");
@@ -612,7 +715,7 @@ class Demo {
         this._setBusy(false);
         return;
       }
-      await this._waitForBackend();
+      await this._waitForBackend(data.instance);
       window.location.reload();          // leaves the loader up until the page swaps
     } catch (e) {
       this._setStatus(`reload failed: ${e.message || e}`);
@@ -629,10 +732,10 @@ class Demo {
     if (this.busy) return;
     this._setBusy(true, "Switching dataset…");
     try {
-      const resp = await fetch("/config", {
+      const resp = await this._fetch("/config", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
-      });
+      }, 60000);
       const data = await resp.json();
       if (!resp.ok) {
         const detail = Array.isArray(data.detail) ? data.detail.join("; ") : (data.detail || "");
@@ -650,7 +753,7 @@ class Demo {
         return;
       }
       this._setBusy(true, `Loading ${data.label} — restarting backend…`);
-      await this._waitForBackend();
+      await this._waitForBackend(data.instance);
       await this.loadVolume();
       await this.loadConfigs();
       this._clearPanel();
@@ -663,15 +766,38 @@ class Demo {
     }
   }
 
-  /** Poll until the relaunched worker serves again (model load takes a while). */
-  async _waitForBackend(timeoutMs = 180000) {
+  /**
+   * Poll until the RELAUNCHED worker serves again (model load takes a while).
+   *
+   * `previous` is the instance id POST /config reported for the worker that is
+   * going away. The old worker keeps answering for ~0.5s after that reply (it
+   * exits on a timer, so Flask can flush the response first), so a plain "does
+   * the port answer" check can return against a process that is about to
+   * vanish -- and then reloadApp()'s window.location.reload() requests the page
+   * from it and the tab hangs on a load that will never complete. That was the
+   * "stuck on loading" switch. Waiting for a DIFFERENT instance id closes it:
+   * the old worker can only ever report the id we were told to ignore.
+   *
+   * /configs rather than /volume on purpose -- a few KB per poll instead of a
+   * few hundred, and it is the endpoint that carries the instance id.
+   */
+  async _waitForBackend(previous = null, timeoutMs = 180000) {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    await sleep(700);                           // don't mistake the dying worker for the new one
+    await sleep(200);                           // let the outgoing worker start going away
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
       try {
-        const r = await fetch("/volume", { cache: "no-store" });
-        if (r.ok) return true;
+        const r = await this._fetch("/configs", { cache: "no-store" }, 5000);
+        if (r.ok) {
+          const info = await r.json();
+          // No id to compare against (older backend) -> fall back to liveness,
+          // keeping the original 700ms guard against the dying worker.
+          if (!previous || !info.instance) {
+            if (Date.now() - t0 >= 700) return true;
+          } else if (info.instance !== previous) {
+            return true;                        // provably the new worker
+          }
+        }
       } catch (_) { /* still down */ }
       await sleep(200);                         // tight poll: the wait IS the delay
     }
@@ -975,10 +1101,10 @@ class Demo {
     const i = this.voxels[idx * 3], j = this.voxels[idx * 3 + 1], k = this.voxels[idx * 3 + 2];
     this._setBusy(true, `reconstructing around (${i}, ${j}, ${k})…`);
     try {
-      const resp = await fetch("/reconstruct", {
+      const resp = await this._fetch("/reconstruct", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ x: i, y: j, z: k }),
-      });
+      }, 120000);              // one cube through the pipeline, cold, on CPU
       if (resp.status === 409) { this._setStatus("busy — a reconstruction is already running"); return; }
       const data = await resp.json();
       if (!resp.ok) { this._setStatus(`error: ${data.error || resp.status}`); return; }
@@ -1005,7 +1131,7 @@ class Demo {
     if (this.busy) return;
     this._setBusy(true, "resetting…");
     try {
-      const data = await (await fetch("/reset", { method: "POST" })).json();
+      const data = await (await this._fetch("/reset", { method: "POST" })).json();
       this._applySnapshot(data);            // same volume: keep the camera where it is
       // The reconstruction is gone, so the projections and crop box that
       // described it would be describing something no longer on screen.
@@ -1129,7 +1255,14 @@ class Demo {
     this._showCancel(!cacheOnly);              // a cached replay finishes in ~2s
     this._setProgress(0, 0, 0);
     let done = false;
+    // One stream at a time. An EventSource that is never closed keeps its TCP
+    // connection checked out for the life of the page, and browsers allow only
+    // ~6 per origin -- leak a few and every later fetch() queues behind them
+    // forever (see _fetch). Closing any previous stream first makes that
+    // impossible regardless of how the previous run ended.
+    this._closeStream();
     const es = new EventSource("/full_inference" + query);
+    this.es = es;
     es.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.type === "progress") {
@@ -1137,7 +1270,7 @@ class Demo {
         if (m.new && m.new.length) { this._appendVoxels(m.new, 1); this.dirty = true; }
         this._setProgress(m.done, m.total, m.added);
       } else if (m.type === "done") {
-        done = true; es.close();
+        done = true; this._closeStream();
         this._setProgress(m.done, m.total, m.added);
         this.dirty = true;
         this._showCancel(false); this._progressOn(false); this._setBusy(false);
@@ -1148,7 +1281,7 @@ class Demo {
                         + `(${m.done}/${m.total} cubes)${src}`);
         this._refreshCacheState();             // a fresh run may have just filled it
       } else if (m.type === "error") {
-        done = true; es.close();
+        done = true; this._closeStream();
         this._showCancel(false); this._progressOn(false); this._setBusy(false);
         this._setStatus(`full inference error: ${m.error}`);
         this._refreshCacheState();
@@ -1156,7 +1289,7 @@ class Demo {
     };
     es.onerror = () => {
       if (done) return;
-      es.close(); this._showCancel(false); this._progressOn(false); this._setBusy(false);
+      this._closeStream(); this._showCancel(false); this._progressOn(false); this._setBusy(false);
       this._setStatus("full inference: connection error");
     };
   }
@@ -1164,7 +1297,7 @@ class Demo {
   /** Sync the "Load Cached Result" button with GET /cache. */
   async _refreshCacheState() {
     try {
-      const info = await (await fetch("/cache", { cache: "no-store" })).json();
+      const info = await (await this._fetch("/cache", { cache: "no-store" })).json();
       this.cache = info;
       const b = document.getElementById("cacheBtn");
       const entry = info.entry || {};
@@ -1189,7 +1322,10 @@ ${(entry.added || 0).toLocaleString()} voxels`;
     // persists the partial result, and sends the final "done" we handle above.
     this._setStatus("cancelling…");
     document.getElementById("cancelBtn").disabled = true;
-    fetch("/full_inference/cancel", { method: "POST" }).catch(() => {});
+    // Body consumed, not just ignored: an unread response keeps its connection
+    // checked out against the per-origin limit (see _fetch).
+    this._fetch("/full_inference/cancel", { method: "POST" })
+        .then((r) => r.text()).catch(() => {});
   }
 
   _showCancel(on) {
@@ -1281,6 +1417,17 @@ ${(entry.added || 0).toLocaleString()} voxels`;
 
   _setBusy(on, msg) {
     this.busy = on;
+    // Arm (or disarm) the escape hatch: shown only if this outlasts ESCAPE_AFTER_MS,
+    // so a normal fast operation never flashes a "something is wrong" prompt.
+    clearTimeout(this._escapeTimer);
+    this._showEscape(false);
+    if (on) {
+      this._escapeTimer = setTimeout(() => {
+        // Full inference offers its own Cancel; don't stack a second one.
+        const own = document.getElementById("cancelBtn");
+        if (this.busy && (!own || own.style.display === "none")) this._showEscape(true);
+      }, ESCAPE_AFTER_MS);
+    }
     document.getElementById("loader").classList.toggle("on", on);
     document.getElementById("fullBtn").disabled = on;
     document.getElementById("reloadBtn").disabled = on;
@@ -1330,6 +1477,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   try {
     const demo = new Demo(document.getElementById("gl"));
     window._demo = demo;
+    // A reload with a stream still open would leave its connection checked out
+    // on the old page while the new one competes for the same ~6 per origin.
+    window.addEventListener("pagehide", () => demo._closeStream());
+    document.getElementById("escCancelBtn").onclick = () => demo._escapeCancel();
+    document.getElementById("escReloadBtn").onclick = () => window.location.reload();
     await demo.loadVolume();
     await demo.loadConfigs();
     await demo._refreshCacheState();

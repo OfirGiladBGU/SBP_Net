@@ -63,6 +63,13 @@ CORE = None
 
 # Worker exit code meaning "relaunch me on a different config" (see _supervise).
 _SWITCH_EXIT_CODE = 42
+# Identifies THIS worker process, so a client can tell the outgoing worker from
+# the incoming one across a restart-based switch. It has to: _request_switch
+# keeps us serving for another 0.5s after we answer, so "the port answers again"
+# is NOT proof the new worker is up -- the old one is still there. POST /config
+# reports the outgoing id and the client waits for a different one. See
+# _waitForBackend() in static/main.js.
+_INSTANCE_ID = f"{os.getpid()}-{time.time_ns()}"
 # Set by the supervisor on the worker's environment; without it a restart would
 # never come back, so POST /config refuses instead of killing the server.
 _SUPERVISED_ENV = "SBP_DEMO_SUPERVISED"
@@ -369,6 +376,8 @@ def get_configs():
         "configs": [cfg.to_dict() for cfg in app_configs.list_configs()],
         # False => POST /config can't restart, so the UI hides the dataset picker.
         "supervised": os.environ.get(_SUPERVISED_ENV) == "1",
+        # Changes on every worker launch; how the client detects a real restart.
+        "instance": _INSTANCE_ID,
     })
 
 
@@ -450,6 +459,10 @@ def post_config():
             "config": config.name,
             "label": config.label,
             "volume": app_configs._rel(volume) if volume else None,
+            # The worker that is about to exit. The client polls until /configs
+            # reports a DIFFERENT instance, so it can never mistake these last
+            # few hundred milliseconds of us for the relaunched worker.
+            "instance": _INSTANCE_ID,
         })
 
 
