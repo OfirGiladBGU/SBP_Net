@@ -127,6 +127,13 @@ patches the new voxels into the view live — or run the full sliding-box infere
 over the whole volume and watch it fill in. A before/after wipe lets you compare
 the input and the reconstruction in a single image.
 
+<p align="center">
+   <img src="assets/Hospital_Demo.png" alt="SBP-Net interactive demo" /><br>
+   <em>The demo on an industrial scan: the red box is the sliding box around the
+   clicked point, yellow are the voxels the model just added, and the panel below
+   shows the six 2D projections the network saw and the output it produced.</em>
+</p>
+
 ```bash
 pip install flask          # see app/extra_requirements.txt
 python app/server.py       # then open http://127.0.0.1:5000/

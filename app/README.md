@@ -4,6 +4,13 @@ An interactive 3D demo of the SBP-Net thin-structure reconstruction pipeline.
 Orbit a volume, **click a point on the structure**, and the model reconstructs a
 cube around that click and patches the new voxels into the view live.
 
+<p align="center">
+   <img src="../assets/Hospital_Demo.png" alt="SBP-Net interactive demo" /><br>
+   <em>A click on the Hospital CUP scan: the red sliding box marks the cube that
+   was reconstructed, yellow are the voxels it added, and the bottom panel shows
+   the six projections the 2D network saw versus the output it produced.</em>
+</p>
+
 - **Browser (WebGL2)** renders the point cloud, handles the camera + picking.
 - **Python (Flask)** holds the volume + model in memory and runs the *real*
   inference pipeline (online projection → 2D model → reproject/OR-fuse). No rendering happens in Python.
